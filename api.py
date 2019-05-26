@@ -16,9 +16,11 @@ app = Flask(__name__)
 # Импортируем модули для работы с базой данных.
 import sqlite3
 
+# Модуль для работы с датой (временем)
 import time
 
-logging.basicConfig(level=logging.DEBUG)
+# Настройка логгирования
+logging.basicConfig(format = u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s', level = logging.DEBUG, filename = u'mylog.log')
 
 # Хранилище данных о сессиях.
 sessionStorage = {}
@@ -45,7 +47,7 @@ load_ids()
 @app.route("/", methods=['POST'])
 def main():
 # Функция получает тело запроса и возвращает ответ.
-    logging.info('Request: %r', request.json)
+    #logging.info('Request: %r', request.json)
 
     response = {
         "version": request.json['version'],
@@ -57,7 +59,7 @@ def main():
 
     handle_dialog(request.json, response)
 
-    logging.info('Response: %r', response)
+    #logging.info('Response: %r', response)
 
     return json.dumps(
         response,
@@ -79,9 +81,14 @@ def handle_dialog(req, res):
         # Если пользоваьель уже логинился
         if sessionStorage.get(user_id) is not None:
             res['response']['text'] = """
-                Добро пожаловать!\nP.S. Навык находится в разработке, так что возможны ошибки, заранее прошу прощения.
-                По всем вопросам и предложениям можно писать в телеграм-аккаунт @m3prod
+            Добро пожаловать!\nP.S. Навык находится в разработке, так что возможны ошибки, заранее прошу прощения.
+            По всем вопросам и предложениям можно писать в телеграм-аккаунт @m3prod
             """
+            res['response']['tts'] = """
+            Добро пожаловать!
+            """
+            res['response']['text'] += '\nВерсия: ' + version
+            res['response']['tts'] += '\nВерсия: ' + version
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             return
 
@@ -98,7 +105,13 @@ def handle_dialog(req, res):
         P.S. Навык находится в разработке, так что возможны ошибки, заранее прошу прощения.
         По всем вопросам и предложениям можно писать в телеграм-аккаунт @m3prod
         """
+        res['response']['tts'] = """
+        Привет! Данный навык помогает в более удобном формате контролировать свои расходы.
+        Данный навык связан с телеграм-ботом @debt_m3bot
+        Авторизируйте ваше устройство при помощи кодовой фразы или используйте "Помощь"
+        """
         res['response']['text'] += '\nВерсия: ' + version
+        res['response']['tts'] += '\nВерсия: ' + version
         res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
         return
 
@@ -115,10 +128,22 @@ def handle_dialog(req, res):
                 Вы тоже должны зайти в телеграм и опять ввести команду /alice.
                 Если бот прислал вам ту фразу, что вы сказали мне последней, то вам осталось всего лишь нажать кнопку "ДА" и пользоваться!
                 Удачи!
+                P.S. Навык находится в разработке, так что возможны ошибки, заранее прошу прощения.
+                По всем вопросам и предложениям можно писать в телеграм-аккаунт @m3prod
+            """
+            res['response']['tts'] = """
+                Итак, для начала вы должны авторизироваться в телеграм-боте и ввести команду /alice.
+                После этого бот предложит вам записать кодовую фразу. Запишите ее.
+                Далее вам необходимо сказать фразу-вопрос мне. Если все хорошо, то в я скажу вам вашу фразу-ответ.
+                После этого вы опять долны мне сказать что-то, что я отправлю в телеграм-бота.
+                Вы тоже должны зайти в телеграм и опять ввести команду /alice.
+                Если бот прислал вам ту фразу, что вы сказали мне последней, то вам осталось всего лишь нажать кнопку "ДА" и пользоваться!
+                Удачи!
             """
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
 
         else:
+            # Проверка наличия фразы в базе данных
             conn = sqlite3.connect(db)
             cur = conn.cursor()
             cur.execute('SELECT phrase, answer, login FROM alice')
@@ -155,7 +180,7 @@ def handle_dialog(req, res):
                 sessionStorage[user_id]['step'] = 'main'
                 res['response']['text'] = 'Отмена невозможна, авторизация уже пройдена! Ваш аккаунт: ' + sessionStorage[user_id]['login']
                 res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-                sessionStorage[user_id]['fin'] = 'ВСЕ'
+                sessionStorage[user_id]['fin'] = 'все'
                 return
             
             conn = sqlite3.connect(user_db(sessionStorage[user_id]['login']))
@@ -183,7 +208,7 @@ def handle_dialog(req, res):
                 sessionStorage[user_id]['step'] = 'main'
                 res['response']['text'] = 'Авторизация успешно пройдена! Ваш аккаунт: ' + sessionStorage[user_id]['login']
                 res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-                sessionStorage[user_id]['fin'] = 'ВСЕ'
+                sessionStorage[user_id]['fin'] = 'все'
                 return
             sessionStorage[user_id]['step'] = prev_step(sessionStorage[user_id]['step'])
             res['response']['text'] = 'Вас не захотели добавлять'
@@ -191,7 +216,14 @@ def handle_dialog(req, res):
             return
 
         else:
+            if check_session(user_id):
+                sessionStorage[user_id]['step'] = 'main'
+                res['response']['text'] = 'Авторизация успешно пройдена! Ваш аккаунт: ' + sessionStorage[user_id]['login']
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                sessionStorage[user_id]['fin'] = 'все'
+                return
             res['response']['text'] = 'Я вас не понимаю'
+            #logging.debug( u'%s: %s' % (sessionStorage[user_id]['step'], com) )
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             return
             
@@ -207,25 +239,35 @@ def handle_dialog(req, res):
 
         if sessionStorage[user_id].get('fin') == None:
             sessionStorage[user_id]['fin'] = 'все'
-        
+
         if com == 'помощь':
             res['response']['text'] = """
             Вот список команд:
-            Баланс - узнать баланс ваших счетов
-            Долги - список ваших должников
-            Выход - отвязать аккаунт
             Смена счета/поменяй счет [на *название*]- смена основного счета записи расходов/доходов (можно сразу с указанием нового счета)
             Текущий счет - узнать выбранный счет
-            Новый расход/доход - добавление расхода или дохода
             Добавь расход/доход + параметры - добавление расхода или дохода одной командой
             Баланс счета *название* - узнать баланс определенного счета
             Сумма долгов - узнать сумму задолженностей
-            Новый долг - добавление долга
             Добавить долг + параметры - добавление долга одной командой
+            Фамилия имя вернул долг + параметры - редактирование долга
+            Расходы за + параметры - суммарные расходы за определенный день или месяц
             
             P.S. Данный навык находится в разработке, поэтому новые функции будут появляться постепенно
             По всем вопросам и предложениям можно писать в телеграм-аккаунт @m3prod
             """
+            res['response']['tts'] = """
+            Вот список команд:
+            Смена счета/поменяй счет [на *название*]- смена основного счета записи расходов/доходов (можно сразу с указанием нового счета)
+            Текущий счет - узнать выбранный счет
+            Добавь расход/доход + параметры - добавление расхода или дохода одной командой
+            Баланс счета *название* - узнать баланс определенного счета
+            Сумма долгов - узнать сумму задолженностей
+            Добавить долг + параметры - добавление долга одной командой
+            Фамилия имя вернул долг + параметры - редактирование долга
+            Расходы за + параметры - суммарные расходы за определенный день или месяц
+            """
+            res['response']['text'] += '\nВерсия: ' + version
+            res['response']['tts'] += '\nВерсия: ' + version
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             return
 
@@ -467,20 +509,84 @@ def handle_dialog(req, res):
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             vr1[user_id] = debt
             return
-            
-
-        # Удаление долга
-        elif 'удалить долг' in com or 'удали долг' in com:###########################################################
-            res['response']['text'] = 'Пока я это не умею'
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-            return
 
         # Расходы за какой-то период времени
         elif 'расходы за' in com or 'доходы за' in com:################################################
-            res['response']['text'] = 'Пока я это не умею'
+            login = sessionStorage[user_id]['login']
+            udb = user_db(login)
+            fin = check_hisfin(com)
+            if fin == None:
+                res['response']['text'] = 'Неверный формат\n'
+                res['response']['text'] += """
+                Пример запроса:
+                Покажи мне расходы за 20 мая 2018 года в категории еда со счета кошелек
+                Покажи мне расходы за 20 мая в категории еда со всех счетов
+                Пример короткого запроса:
+                Расходы за сегодня
+                Если не указана категория, то будут показаны последние 10 расходов/доходов во всех категориях
+                Если не указан счет, то будут показаны расходы/доходы с основного счета (поменять командой "смена счета", проверить командой текущий счет)
+                Структура запроса:
+                [Покажи мне] {расходы/доходы} за {сегодня/вчера/этот месяц/прошлый месяц/*месяц*/*месяц* *год*/*число* *месяц*/*число* *месяц* *год*} [в категории *название*] [со счета *название*]
+                """
+                res['response']['tts'] = 'Неверный формат'
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                return
+
+            if fin[2] == 'all':
+                fin[2] = sessionStorage[user_id]['fin']
+
+            # Проверка правильности даты
+            tm = [0]*3
+            tm[2] = fin[5] #год
+            tm[1] = fin[4] #месяц
+            tm[0] = fin[3] #день
+            if tm[1] < 1 or tm[1] > 12 or tm[0] < 0 or tm[0] > 31:
+                res['response']['text'] = 'Неправильная дата'
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                return
+            
+            # Проверка существования категории
+            if fin[1] != 'все':
+                conn = sqlite3.connect(udb)
+                cur = conn.cursor()
+                if fin[0] == 'расходы':
+                    cur.execute("SELECT cat FROM cats WHERE login = '%s'"%(login))
+                elif fin[0] == 'доходы':
+                    cur.execute("SELECT cat FROM fcats WHERE login = '%s'"%(login))
+                kod = 1
+                for row in cur:
+                    if row[0] == fin[1] or (fin[1] in row[0] and kod == 1):
+                        kod = 0
+                        fin[1] = row[0]
+                cur.close()
+                conn.close()
+                if kod == 1:
+                    res['response']['text'] = 'Неправильная категория'
+                    res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])    
+                    return
+
+            # Проверка существования счета
+            if fin[2] != 'все':
+                conn = sqlite3.connect(udb)
+                cur = conn.cursor()
+                cur.execute("SELECT name FROM bank WHERE login = '%s'"%(login))
+                kod = 1
+                for row in cur:
+                    if row[0] == fin[2] or ((fin[2] in row[0]) and kod == 1):
+                        kod = 0
+                        fin[2] = row[0]
+                cur.close()
+                conn.close()
+                if kod == 1:
+                    res['response']['text'] = 'Неправильный счет' 
+                    res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                    return
+
+
+            vr1[user_id] = fin
+            res['response']['text'] = watch_his(user_id)
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             return
-
 
         # Смена счета
         elif ('помен' in com or 'смен' in com) and 'счет' in com:
@@ -490,6 +596,11 @@ def handle_dialog(req, res):
                 com = com.split(' на ')
                 com.pop(0)
                 com = ' на '.join(com)
+                if com == 'все':
+                    sessionStorage[user_id]['fin'] = 'все'
+                    res['response']['text'] = 'Выбраны все счета'
+                    res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                    return
                 conn = sqlite3.connect(udb)
                 cur = conn.cursor()
                 cur.execute("SELECT name FROM bank WHERE login = '%s'"%(login))
@@ -529,8 +640,83 @@ def handle_dialog(req, res):
             res['response']['text'] = 'Выберите другой счет'
             return
 
+        # Редактирование долга
+        elif 'вернул' in com or 'отдал' in com:
+            login = sessionStorage[user_id]['login']
+            udb = user_db(login)
+            debt = check_eddebt(com)
+            if debt == None:
+                res['response']['tts'] = 'Неверный формат'
+                res['response']['text'] = """
+                Неверный формат
+                Пример запроса:
+                Иван Иванов вернул мне 150 рублей 90 копеек на счет кошелек
+                Пример короткого запроса:
+                Иван Иванов вернул мне 150 рублей
+                Другой пример запроса:
+                Иван Иванов вернул мне долг
+                Если не указан счет, то позиция будет добавлена на основной счет (поменять командой "смена счета", проверить командой текущий счет)
+                Запрос "венул долг" означает полное возвращение долга
+                Структура запроса:
+                *фамилия* *имя* вернул мне *число* рублей [*число* копеек] [на счет *название*]
+                """
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                return
+
+            if debt[4] == 'все':
+                debt[4] = sessionStorage[user_id]['fin']
+
+            # Проверка существования счета
+            conn = sqlite3.connect(udb)
+            cur = conn.cursor()
+            cur.execute("SELECT name FROM bank WHERE login = '%s'"%(login))
+            kod = 1
+            for row in cur:
+                if row[0] == debt[4] or (debt[4] in row[0] and kod == 1):
+                    kod = 0
+                    debt[4] = row[0]
+            if kod == 1:
+                res['response']['text'] = 'Неправильный счет' 
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                cur.close()
+                conn.close()
+                return
+
+            fam, im = debt[0], debt[1]
+            fam, im = fam + ' ' + im, im + ' ' + fam
+            if check_text(fam.lower(), 'rus'):
+                res['response']['text'] = 'Используйте только русские буквы'
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                cur.close()
+                conn.close()
+                return
+            kod = 1
+            cur.execute("SELECT cred, sz FROM credits WHERE login = '%s'"%(login))
+            for row in cur:
+                if (row[0].lower() == fam.lower()) or (row[0].lower() == im.lower()):
+                    kod = 0
+                    sz = row[1]
+                    debt[0], debt[1] = row[0].split()
+            cur.close()
+            conn.close()
+            if kod == 1:
+                res['response']['text'] = 'Этого человека нет в списке' 
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                return
+            if str(debt[2]) == 'all':
+                debt[2] = sz
+
+            debt.append(sz)
+
+            sessionStorage[user_id]['step'] += '_editdebt'
+            res['response']['text'] = 'Правильно ли я поняла, что ' + debt[0] + ' ' + debt[1] + ' вернул вам ' + str(debt[2]) + ' ' + debt[3] + ' на счет: ' + debt[4]
+            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            vr1[user_id] = debt
+            return
+
         else:
             res['response']['text'] = 'Я вас не понимаю. Можете воспользоваться помощью.'
+            #logging.debug( u'%s: %s' % (sessionStorage[user_id]['step'], com) )
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             return
 
@@ -543,17 +729,57 @@ def handle_dialog(req, res):
             sessionStorage[user_id]['fin'] = 'все'
             res['response']['text'] = 'Выбраны все счета'
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            vr1.pop(user_id)
             return
         elif com not in vr1[user_id]:
             res['response']['text'] = 'Такого счета нет'
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            vr1.pop(user_id)
             return
         else:
             sessionStorage[user_id]['fin'] = com
             res['response']['text'] = 'Выбран счет ' + sessionStorage[user_id]['fin']
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            vr1.pop(user_id)
             return
+        
+    # Редактирование долга
+    elif sessionStorage[user_id]['step'] == 'main_editdebt':
+        login = sessionStorage[user_id]['login']
+        udb = user_db(login)
+        debt = vr1[user_id]
         vr1.pop(user_id)
+        sessionStorage[user_id]['step'] = prev_step(sessionStorage[user_id]['step'])
+        if com == 'нет' or com != 'да':
+            res['response']['text'] = 'Ладно, этот долг мы оставим как есть'
+            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            return
+        fam, dolg = debt[0] + ' ' + debt[1], str(debt[2])
+        spn = debt[4]
+        conn = sqlite3.connect(udb)
+        cur = conn.cursor()
+        cur.execute("SELECT bal FROM bank WHERE login = '%s' AND name = '%s'"%(login,spn))
+        for row in cur:
+            if row[0] + round(float(dolg),2) < 0:
+                res['response']['text'] = 'У вас нет столько денег'
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                cur.close()
+                conn.close()
+                return
+            sz = row[0]
+        sz += round(float(dolg),2)
+        cur.execute("UPDATE bank SET bal = '%f' WHERE login = '%s' AND name = '%s'"%(sz,login,spn))
+        zn = debt[5] - debt[2]
+        if zn == 0:
+            cur.execute("DELETE FROM credits WHERE login = '%s' AND cred = '%s'"%(login,fam))
+        else:
+            cur.execute("UPDATE credits SET sz = '%f' WHERE login = '%s' AND cred = '%s'"%(zn,login,fam))
+        conn.commit()
+        cur.close()
+        conn.close()
+        res['response']['text'] = 'Долг успешно отредактирован, теперь ' + fam + ' должен вам ' + str(zn) + 'рублей'
+        res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+        return
 
     # Добавление долга
     elif sessionStorage[user_id]['step'] == 'main_adddebt':
@@ -656,7 +882,7 @@ def handle_dialog(req, res):
         res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
         return
         
-
+# Просмотр счетов
 def watch_bank(user_id, spn = 'все'):
     login = sessionStorage[user_id]['login']
     udb = user_db(login)
@@ -692,7 +918,7 @@ def watch_bank(user_id, spn = 'все'):
             stroka = 'Такого счета нет'
     return stroka
 
-
+# Просмотр долгов
 def watch_debts(user_id, tp = 'all'):
     login = sessionStorage[user_id]['login']
     udb = user_db(login)
@@ -739,6 +965,97 @@ def watch_debts(user_id, tp = 'all'):
         stroka = 'У вас нет должников'
     return stroka
 
+def watch_his(user_id):
+    login = sessionStorage[user_id]['login']
+    udb = user_db(login)
+    fin = vr1[user_id]
+    vr1.pop(user_id)
+    #return 'Данная функция находится в разработке'#str(fin)##########################################
+    if fin[0] == 'расходы':
+        stroka = 'Ваши расходы за '
+    elif fin[0] == 'доходы':
+        stroka = 'Ваши доходы за '
+    if fin[3] == 0:
+        stroka += monthRim_rev[fin[4]] + ' ' + str(fin[5]) + '-го года'
+    else:
+        stroka += str(fin[3]) + ' ' + monthR_rev[fin[4]] + ' ' + str(fin[5]) + '-го года'
+    spn = fin[2]
+    categ = fin[1]
+    if categ != 'все':
+        stroka += " в категори " + categ
+    if spn != 'все':
+        stroka += " со счета " + spn 
+    stroka += "\n"
+    year = fin[5]
+    mon = fin[4]
+    if fin[3] == 0:
+        sday = 1
+        fday = 31
+    else:
+        fday = fin[3]
+        sday = fin[3]
+    day = sday
+    osum = 0
+    kod = 0
+    kol = 0
+    elem = []
+    cat_s = dict()
+    conn = sqlite3.connect(udb)
+    cur = conn.cursor()
+    while kod == 0:
+        if spn == 'все' and categ == 'все':
+            if fin[0] == 'расходы':
+                cur.execute("SELECT name, sum, cat, bank FROM spend WHERE login = '%s' AND year = '%d' AND month = '%d' AND day = '%d'"%(login,year,mon,day))
+            elif fin[0] == 'доходы':
+                cur.execute("SELECT name, sum, cat, bank FROM inc WHERE login = '%s' AND year = '%d' AND month = '%d' AND day = '%d'"%(login,year,mon,day))
+        elif spn != 'все' and categ == 'все':
+            if fin[0] == 'расходы':
+                cur.execute("SELECT name, sum, cat, bank FROM spend WHERE login = '%s' AND year = '%d' AND month = '%d' AND day = '%d' AND bank = '%s'"%(login,year,mon,day,spn))
+            elif fin[0] == 'доходы':
+                cur.execute("SELECT name, sum, cat, bank FROM inc WHERE login = '%s' AND year = '%d' AND month = '%d' AND day = '%d' AND bank = '%s'"%(login,year,mon,day,spn))
+        elif spn == 'все' and categ != 'все':
+            if fin[0] == 'расходы':
+                cur.execute("SELECT name, sum, cat, bank FROM spend WHERE login = '%s' AND year = '%d' AND month = '%d' AND day = '%d' AND cat = '%s'"%(login,year,mon,day,categ))
+            elif fin[0] == 'доходы':
+                cur.execute("SELECT name, sum, cat, bank FROM inc WHERE login = '%s' AND year = '%d' AND month = '%d' AND day = '%d' AND cat = '%s'"%(login,year,mon,day,categ))
+        elif spn != 'все' and categ != 'все':
+            if fin[0] == 'расходы':
+                cur.execute("SELECT name, sum FROM spend WHERE login = '%s' AND year = '%d' AND month = '%d' AND day = '%d' AND bank = '%s' AND cat = '%s'"%(login,year,mon,day,spn,categ))
+            elif fin[0] == 'доходы':
+                cur.execute("SELECT name, sum FROM inc WHERE login = '%s' AND year = '%d' AND month = '%d' AND day = '%d' AND bank = '%s' AND cat = '%s'"%(login,year,mon,day,spn,categ))
+        for row in cur:
+            if categ == 'все':
+                try:
+                    cat_s[row[2]] += row[1]
+                except KeyError:
+                    cat_s[row[2]] = row[1]
+            txt = row[0]
+            txt = txt.split('%')
+            if spn != 'все' and categ != 'все':
+                elem.append({'day':day,'name':txt[0],'sum':row[1]})
+            else:
+                elem.append({'day':day,'name':row[0],'sum':row[1],'cat':row[2],'bank':row[3]})
+            if len(elem) > 10:
+                elem.pop(0)
+            osum += round(row[1],2)
+            kol += 1
+        if day == fday:
+            kod = 1
+        day += 1
+    cur.close()
+    conn.close()
+    for i in elem:
+        pass
+    if categ == 'все':
+        stroka += 'По категориям:\n'
+        for i in cat_s:
+            stroka += i + ': ' + str(round(cat_s[i],2)) + ' рублей\n'
+    stroka += 'Итого: ' + str(round(osum,2))
+    if kol == 0:
+        stroka = "За выбранный период по данным категориям и счету ничего нет"
+    return stroka
+
+# Проверка авторизации
 def check_session(user_id):
     conn = sqlite3.connect(db)
     cur = conn.cursor()
