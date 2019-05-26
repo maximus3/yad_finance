@@ -2,8 +2,11 @@
 # Импортирует поддержку UTF-8.
 from __future__ import unicode_literals
 
-# Импортируем файл config
+# Импортируем файл config, func, get_data
 from config import *
+from func import *
+from get_data import *
+from metrik import *
 
 # Импортируем модули для работы с JSON и логами.
 import json
@@ -19,11 +22,11 @@ import sqlite3
 # Модуль для работы с датой (временем)
 import time
 
-# Модуль для работы с метрикой
-from chatbase import Message
+# Google DialogFlow
+import apiai
 
 # Настройка логгирования
-logging.basicConfig(format = u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s', level = logging.DEBUG)#, filename = u'mylog.log')
+logging.basicConfig(format = u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s', level = logging.DEBUG, filename = u'fin_alice.log')
 
 # Хранилище данных о сессиях.
 sessionStorage = {}
@@ -31,20 +34,13 @@ sessionStorage = {}
 # Нужные временные данные
 vr1 = dict()
 
-# Проверка уже залогинившихся пользователей
-def load_ids():
-    conn = sqlite3.connect(db)
-    cur = conn.cursor()
-    cur.execute('SELECT id, login FROM zalog_alice')
-    for row in cur:
-        sessionStorage[row[0]] = {
-            'step': 'main',
-            'login': row[1]
-        }
-    cur.close()
-    conn.close()
+beta_send = """
+P.S. Навык находится в разработке, так что возможны ошибки, заранее прошу прощения.
+Все ваши комментарии, пожелания, предложения и жалобы можно писать в телеграм-аккаунт @m3prod
+Обязательно подпишитесь на новости в телеграмме @finance_m3news, чтобы не пропускать новые обновления!
+"""
     
-load_ids()
+sessionStorage = load_ids()
 
 # Задаем параметры приложения Flask.
 @app.route("/", methods=['POST'])
@@ -73,200 +69,276 @@ def main():
 # Функция для непосредственной обработки диалога.
 def handle_dialog(req, res):
     user_id = req['session']['user_id']
+    session_id = req['session']['session_id']
+    screen = 'screen' in req['meta']['interfaces']
 
-    com = req['request']['command'].lower()
+    try:
+        com = req['request']['command'].lower()
+    except Exception:
+        com = '#button'
 
-    metrik_id = user_id
-    # if not (check_session(user_id)):
-    #     metrik_id = user_id
-    # else:
-    #     metrik_id = sessionStorage[user_id]['login']
-    if not (check_session(user_id)):
-        user_step = 'mainUS'
-    else:
-        user_step = sessionStorage[user_id]['step']
-    msg = Message(api_key=metrik_key,
-                  platform="alice",
-                  user_id=metrik_id,
-                  message=com,
-                  intent="alice_"+user_step,
-                  not_handled=False)
-    resp = msg.send()
+    if com == "ping":
+        res['response']['text'] = 'pong'
+        return
 
-    if req['session']['new']: 
-        # Это новый пользователь.
-        # Инициализируем сессию и поприветствуем его.
-
-        # Если пользоваьель уже логинился
-        if sessionStorage.get(user_id) is not None:
-            res['response']['text'] = """
-            Добро пожаловать!
-            P.S. Навык находится в разработке, так что возможны ошибки, заранее прошу прощения.
-            Все ваши комментарии, пожелания, предложения и жалобы можно писать в телеграм-аккаунт @m3prod
-            """
-            res['response']['tts'] = """
-            Добро пожаловать!
-            """
-            res['response']['text'] += '\nВерсия: ' + version
-            res['response']['tts'] += '\nВерсия: ' + version
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-            return
-
+    if sessionStorage.get(user_id) == None:
         sessionStorage[user_id] = {
             'step': 'mainUS',
             'login': '',
             'fin': 'все'
         }
 
+    step = sessionStorage[user_id]['step']
+    login = sessionStorage[user_id]['login']
+
+    if req['session']['new'] and com =='#button':
+        com = '#new_session'
+
+    if req['session']['new'] and step == 'mainUS': 
+        # Это новый пользователь.
+        # Инициализируем сессию и поприветствуем его.
+
+        # Если пользоваьель уже логинился
+        #if step == 'mainUS':
+        #    res['response']['text'] = """
+        #    Добро пожаловать!
+        #    """ + beta_send
+        #    res['response']['tts'] = """
+        #    Добро пожаловать!
+        #    """
+        #    res['response']['text'] += '\nВерсия: ' + version
+        #    res['response']['tts'] += '\nВерсия: ' + version
+        #    res['response']['buttons'] = getBut(step)
+        #    return
+
+        sessionStorage[user_id] = {
+            'step': 'mainUS',
+            'login': '',
+            'fin': 'все'
+        }
         res['response']['text'] = """
-        Привет! Данный навык помогает в более удобном формате контролировать свои расходы.
-        Данный навык связан с телеграм-ботом @debt_m3bot
-        Авторизируйте ваше устройство при помощи кодовой фразы или используйте "Помощь"
-        P.S. Навык находится в разработке, так что возможны ошибки, заранее прошу прощения.
-        По всем вопросам и предложениям можно писать в телеграм-аккаунт @m3prod
-        """
+        Привет! Данный навык поможет вам в более удобном формате контролировать свои расходы.
+        Если вы уже зарегистрировались в телеграм-боте @debt_m3bot, то скажите вашу кодовую фразу или используйте "Помощь".
+        !!NEW!! Также, если вы уже зарегистрировались, вы можете авторизироваться нажав кнопку ниже. !!NEW!!
+        """ + beta_send
         res['response']['tts'] = """
-        Привет! Данный навык помогает в более удобном формате контролировать свои расходы.
-        Данный навык связан с телеграм-ботом @debt_m3bot
-        Авторизируйте ваше устройство при помощи кодовой фразы или используйте "Помощь"
+        Привет! Данный навык поможет вам в более удобном формате контролировать свои расходы.
+        Если вы уже зарегистрировались в телеграм-боте @debt_m3bot, то скажите вашу кодовую фразу или используйте "Помощь".
+        Также, если вы уже зарегистрировались, вы можете авторизироваться нажав кнопку ниже.
         """
         res['response']['text'] += '\nВерсия: ' + version
         res['response']['tts'] += '\nВерсия: ' + version
-        res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+        res['response']['buttons'] = getBut(step, user_id)
+        send_metrik('alice', user_id, com, step, False)
         return
 
-    
-    # Обрабатываем ответ пользователя.
-    if sessionStorage[user_id]['step'] == 'mainUS':
+    ai_action = ''
+    ai_parameters = {}
+    ai_contexts = []
+
+    if com[0] != '#':
+        
+        # DIALOGFLOW_START
+
+        logging.info('Connecting to DF')
+        ai_request = apiai.ApiAI(TOKEN_AI).text_request() # Токен API к Dialogflow
+        logging.info('Connected')
+        ai_request.lang = 'ru' # На каком языке будет послан запрос
+        ai_request.session_id = session_id # ID Сессии диалога (нужно, чтобы потом учить бота)
+        logging.info('Sending text to DF')
+        ai_request.query = com # Посылаем запрос к ИИ с сообщением от юзера
+        logging.info('Sent')
+        logging.info('Getting result from DF')
+        responseJson = json.loads(ai_request.getresponse().read().decode('utf-8'))
+        logging.info('Got')
+        ai_response = responseJson['result']['fulfillment']['speech'] # Разбираем JSON и вытаскиваем ответ
+
+        if 'action' in responseJson['result']:
+            ai_action = responseJson['result']['action']
+        if 'parameters' in responseJson['result']:
+            ai_parameters = responseJson['result']['parameters']
+        if 'contexts' in responseJson['result']:
+            ai_contexts = responseJson['result']['contexts']
+            
+        # Если есть ответ от бота - присылаем юзеру, если нет - бот его не понял
+        if not ai_response:
+            ai_respone = '#no_answer'
+
+        # DIALOGFLOW_FINISH
+
+    # Пользователь не зарегистрирован
+    if step == 'mainUS':
+
+        login = check_session(user_id)
+        
+        # Проверка авторизации
+        if login:
+            step = 'main'
+            sessionStorage[user_id]['login'] = login
+            sessionStorage[user_id]['step'] = step
+            res['response']['text'] = 'Авторизация успешно пройдена! Ваш аккаунт: ' + login
+            res['response']['buttons'] = getBut(step)
+            sessionStorage[user_id]['fin'] = 'все'
+            return
+        
         # Пользователь попросил помощь
-        if com == 'помощь':
+        if ai_action == 'bot.description' or ai_action == 'bot.help':
             res['response']['text'] = """
-                Порядок действий: 
-                1) Авторизироваться в телеграм-боте @debt_m3bot и ввести команду /alice.
-                2) Запишите кодовую фразу-вопрос и фразу-ответ, используя телеграм-бота.
-                3) Скажите фразу-вопрос мне. Если все хорошо, то я скажу вам вашу фразу-ответ.
-                4) Скажите мне любую фразу, с помощью которой вы сможете авторизировать данное устройство. Эту фразу я отправлю в телеграм-бота.
-                5) Зайдите в телеграм-бота и введите команду /alice
-                6) Выберите пункт "Авторизация диалога"
-                7) Если бот прислал вам ту фразу, что вы сказали последней, то вам осталось всего лишь нажать кнопку "ДА" в телеграм-боте и начать пользоваться навыком!
-                Удачи!
-                P.S. Навык находится в разработке, так что возможны ошибки, заранее прошу прощения.
-                По всем вопросам и предложениям можно писать в телеграм-аккаунт @m3prod                
+Попробуйте аторизироваться в телеграм-боте @debt_m3bot и нажать кнопку "Быстрая авторизация" ниже.
+Если у вас не получилось, то делайте следующее:
+1) Авторизироваться в телеграм-боте @debt_m3bot и ввести команду /alice.
+2) Запишите кодовую фразу-вопрос и фразу-ответ, используя телеграм-бота.
+3) Скажите фразу-вопрос мне. Если все хорошо, то я скажу вам вашу фразу-ответ.
+4) Скажите мне любую фразу, с помощью которой вы сможете авторизировать данное устройство. Эту фразу я отправлю в телеграм-бота.
+5) Зайдите в телеграм-бота и введите команду /alice
+6) Выберите пункт "Авторизация диалога"
+7) Если бот прислал вам ту фразу, что вы сказали последней, то вам осталось всего лишь нажать кнопку "ДА" в телеграм-боте и начать пользоваться навыком!
+Удачи!            
             """
             res['response']['tts'] = """
-                Порядок действий: 
-                1) Авторизироваться в телеграм-боте @debt_m3bot и ввести команду /alice.
-                2) Запишите кодовую фразу-вопрос и фразу-ответ, используя телеграм-бота.
-                3) Скажите фразу-вопрос мне. Если все хорошо, то я скажу вам вашу фразу-ответ.
-                4) Скажите мне любую фразу, с помощью которой вы сможете авторизировать данное устройство. Эту фразу я отправлю в телеграм-бота.
-                5) Зайдите в телеграм-бота и введите команду /alice
-                6) Выберите пункт "Авторизация диалога"
-                7) Если бот прислал вам ту фразу, что вы сказали последней, то вам осталось всего лишь нажать кнопку "ДА" в телеграм-боте и начать пользоваться навыком!
-                Удачи!
+Попробуйте аторизироваться в телеграм-боте @debt_m3bot и нажать кнопку "Быстрая авторизация" ниже.
+Если у вас не получилось, то делайте следующее:
+1) Авторизироваться в телеграм-боте @debt_m3bot и ввести команду /alice.
+2) Запишите кодовую фразу-вопрос и фразу-ответ, используя телеграм-бота.
+3) Скажите фразу-вопрос мне. Если все хорошо, то я скажу вам вашу фразу-ответ.
+4) Скажите мне любую фразу, с помощью которой вы сможете авторизировать данное устройство. Эту фразу я отправлю в телеграм-бота.
+5) Зайдите в телеграм-бота и введите команду /alice
+6) Выберите пункт "Авторизация диалога"
+7) Если бот прислал вам ту фразу, что вы сказали последней, то вам осталось всего лишь нажать кнопку "ДА" в телеграм-боте и начать пользоваться навыком!
+Удачи!         
             """
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-
-        else:
-            # Проверка наличия фразы в базе данных
-            conn = sqlite3.connect(db)
-            cur = conn.cursor()
-            cur.execute('SELECT phrase, answer, login FROM alice')
-            for row in cur:
-                if com == row[0]:
-                    res['response']['text'] = row[1] + '\nТеперь я жду от вас фразу, которая будет отправлена в телеграм-бота и с помощью которой вы сможете авторизировать данное устройство'
-                    sessionStorage[user_id]['step'] += '_login'
-                    sessionStorage[user_id]['login'] = row[2]
-                    cur.close()
-                    conn.close()
-                    return
-            cur.close()
-            conn.close()
-            res['response']['text'] = "К сожалению, у меня не получилось найти такую фразу. Проверьте ее правильность (падежи и формы слов)"
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            res['response']['buttons'] = getBut(step, user_id)
+            send_metrik('alice', user_id, com, step, False)
             return
 
-    elif sessionStorage[user_id]['step'] == 'mainUS_login':
-        conn = sqlite3.connect(user_db(sessionStorage[user_id]['login']))
+        elif com == '#button':
+            res['response']['text'] = """
+                Будет что-то непонятно - обращайтесь!            
+            """ + beta_send
+            res['response']['tts'] = """
+                Будет что-то непонятно - обращайтесь!
+            """
+            res['response']['buttons'] = getBut(step, user_id)
+            return
+
+        # Проверка фразы
+        else:
+            check, answer, login = phrase_in(com)
+            if (check):
+                send_metrik('alice', user_id, com, step, False)
+                res['response']['text'] = answer + '\nТеперь я жду от вас фразу, которая будет отправлена в телеграм-бота и с помощью которой вы сможете авторизировать данное устройство'
+                sessionStorage[user_id]['step'] += '_login'
+                sessionStorage[user_id]['login'] = login
+                return
+            res['response']['text'] = "К сожалению, у меня не получилось найти такую фразу. Проверьте ее правильность (падежи и формы слов)"
+            res['response']['buttons'] = getBut(step, user_id)
+            send_metrik('alice', user_id, com, step, True)
+            return
+
+    # Переход в ожидание подтверждения регистрации
+    elif step == 'mainUS_login':
+        send_metrik('alice', user_id, com, step, False)
+        conn = sqlite3.connect(user_db(login))
         cur = conn.cursor()
-        cur.execute("INSERT INTO alice (id,phrase,login) VALUES ('%s','%s','%s')"%(user_id,com,sessionStorage[user_id]['login']))
+        cur.execute("INSERT INTO alice (id,phrase,login) VALUES ('%s','%s','%s')"%(user_id,com,login))
         conn.commit()
         cur.close()
         conn.close()
-        sessionStorage[user_id]['step'] = prev_step(sessionStorage[user_id]['step'])
-        sessionStorage[user_id]['step'] += '_waiting'
+        step = prev_step(step)
+        step += '_waiting'
+        sessionStorage[user_id]['step'] = step
         res['response']['text'] = """Отлично! Теперь зайдите в телеграм-бота и подтвердите авторизацию. Для проверки или отмены используйте команды "Проверка авторизации" и "Отменить авторизацию" соответственно"""
-        res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+        res['response']['buttons'] = getBut(step)
         return
 
-    elif sessionStorage[user_id]['step'] == 'mainUS_waiting':
+    # Ожидание авторизации
+    elif step == 'mainUS_waiting':
+        
+        # Пользователь отменяет авторизацию
         if ('отмени' in com) or ('отмена' in com):
-            if check_session(user_id):
-                sessionStorage[user_id]['step'] = 'main'
-                res['response']['text'] = 'Отмена невозможна, авторизация уже пройдена! Ваш аккаунт: ' + sessionStorage[user_id]['login']
-                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            send_metrik('alice', user_id, com, step, False)
+            if check_session(user_id, login):
+                step = 'main'
+                sessionStorage[user_id]['step'] = step
+                res['response']['text'] = 'Отмена невозможна, авторизация уже пройдена! Ваш аккаунт: ' + login
+                res['response']['buttons'] = getBut(step)
                 sessionStorage[user_id]['fin'] = 'все'
                 return
             
-            conn = sqlite3.connect(user_db(sessionStorage[user_id]['login']))
+            conn = sqlite3.connect(user_db(login))
             cur = conn.cursor()
             cur.execute("DELETE FROM alice WHERE id = '%s'"%(user_id))
             conn.commit()
             cur.close()
             conn.close()
-            sessionStorage[user_id]['step'] = prev_step(sessionStorage[user_id]['step'])
+            step = prev_step(sessionStorage[user_id]['step'])
+            sessionStorage[user_id]['step'] = step
             res['response']['text'] = "Авторизация отменена"
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            res['response']['buttons'] = getBut(step)
             return
 
+        # Пользователь проверяет авторизацию
         elif 'провер' in com:
-            conn = sqlite3.connect(user_db(sessionStorage[user_id]['login']))
+            send_metrik('alice', user_id, com, step, False)
+            conn = sqlite3.connect(user_db(login))
             cur = conn.cursor()
             cur.execute("SELECT * FROM alice WHERE id = '%s'"%(user_id))
             for row in cur:
                 res['response']['text'] = 'Пока новостей нет)'
-                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                res['response']['buttons'] = getBut(step)
                 cur.close()
                 conn.close()
                 return
-            if check_session(user_id):
-                sessionStorage[user_id]['step'] = 'main'
-                res['response']['text'] = 'Авторизация успешно пройдена! Ваш аккаунт: ' + sessionStorage[user_id]['login']
-                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            if check_session(user_id, login):
+                step = 'main'
+                sessionStorage[user_id]['step'] = step
+                res['response']['text'] = 'Авторизация успешно пройдена! Ваш аккаунт: ' + login
+                res['response']['buttons'] = getBut(step)
                 sessionStorage[user_id]['fin'] = 'все'
                 return
-            sessionStorage[user_id]['step'] = prev_step(sessionStorage[user_id]['step'])
-            res['response']['text'] = 'Вас не захотели добавлять'
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            step = prev_step(step)
+            sessionStorage[user_id]['step'] = step
+            res['response']['text'] = 'Добавление отклонено. Попробуйте еще раз или воспользуйтесь помощью.'
+            res['response']['buttons'] = getBut(step)
             return
 
+        # Другое сообщение
         else:
-            if check_session(user_id):
-                sessionStorage[user_id]['step'] = 'main'
-                res['response']['text'] = 'Авторизация успешно пройдена! Ваш аккаунт: ' + sessionStorage[user_id]['login']
-                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            send_metrik('alice', user_id, com, step, True)
+            if check_session(user_id, login):
+                step = 'main'
+                sessionStorage[user_id]['step'] = step
+                res['response']['text'] = 'Авторизация успешно пройдена! Ваш аккаунт: ' + login
+                res['response']['buttons'] = getBut(step)
                 sessionStorage[user_id]['fin'] = 'все'
                 return
-            res['response']['text'] = 'Я вас не понимаю'
+            res['response']['text'] = 'К сожалению, я пока не понимаю такие команды.'
             #logging.debug( u'%s: %s' % (sessionStorage[user_id]['step'], com) )
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            res['response']['buttons'] = getBut(step)
             return
-            
-        
-        
-    elif sessionStorage[user_id]['step'] == 'main':
+
+    # Главное меню
+    elif step == 'main':
+
         # Проверка на то, есть ли доступ к аккаунту
-        if not (check_session(user_id)):
+        if not (check_session(user_id, login)):
             res['response']['text'] = "Бот выполнил деаутентификацию."
-            sessionStorage[user_id]['step'] = 'mainUS'
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            step = 'mainUS'
+            sessionStorage[user_id]['step'] = step
+            res['response']['buttons'] = getBut(step)
+            send_metrik('alice', user_id, com, step, False)
             return
 
         if sessionStorage[user_id].get('fin') == None:
             sessionStorage[user_id]['fin'] = 'все'
 
+        spend = sessionStorage[user_id]['fin']
+
+        # Помощь
         if com == 'помощь':
+            send_metrik('alice', user_id, com, step, False)
             res['response']['text'] = """
-            Список команд:
+            Список основных команд:
             - Баланс [счета *название*]
             - Долги
             - Сумма долгов
@@ -279,10 +351,7 @@ def handle_dialog(req, res):
             - Выход
 
             В квадратных скобках указаны необязательные параметры
-
-            P.S. Данный навык находится в разработке, поэтому новые функции будут появляться постепенно
-            По всем вопросам и предложениям можно писать в телеграм-аккаунт @m3prod
-            """
+            """ + beta_send
 
             dsc = """
             Смена счета/поменяй счет [на *название*]- смена основного счета записи расходов/доходов (можно сразу с указанием нового счета)
@@ -310,76 +379,84 @@ def handle_dialog(req, res):
             """
             res['response']['text'] += '\nВерсия: ' + version
             res['response']['tts'] += '\nВерсия: ' + version
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            res['response']['buttons'] = getBut(step)
             return
 
         # Баланс конкретного счета
         elif 'баланс счета' in com:
+            send_metrik('alice', user_id, com, step, False)
             com = com.split()
             while com[0] != 'баланс':
                 com.pop(0)
             com.pop(0)
             com.pop(0)
             if com == []:
-                if sessionStorage[user_id]['fin'] == 'все':
+                if spend == 'все':
                     res['response']['text'] = 'Вы не выбрали счет'
-                    res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                    res['response']['buttons'] = getBut(step)
                     return
                 else:
-                    com = sessionStorage[user_id]['fin']
+                    com = spend
             else:
                 com = ' '.join(com)
             res['response']['text'] = watch_bank(user_id, com)
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            res['response']['buttons'] = getBut(step)
             return
 
         # Сумма долгов
         elif 'сумм' in com and 'дол' in com:
+            send_metrik('alice', user_id, com, step, False)
             res['response']['text'] = watch_debts(user_id, 'sum')
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            res['response']['buttons'] = getBut(step)
             return
 
         # Просмотр баланса всех счетов
         elif 'баланс' in com:
+            send_metrik('alice', user_id, com, step, False)
             com = com.split()
             while com[0] != 'баланс':
                 com.pop(0)
             com.pop(0)
             if com == []:
                 res['response']['text'] = watch_bank(user_id)
-                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                res['response']['buttons'] = getBut(step)
                 return
             com = ' '.join(com)
             res['response']['text'] = watch_bank(user_id, com)
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            res['response']['buttons'] = getBut(step)
             return
 
         # Просмотр долгов
         elif 'долги' in com or 'должник' in com:
+            send_metrik('alice', user_id, com, step, False)
             res['response']['text'] = watch_debts(user_id)
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            res['response']['buttons'] = getBut(step)
             return
 
         # Выход из аккаунта
         elif 'выход' in com or 'выйти' in com:
-            conn = sqlite3.connect(db)
+            send_metrik('alice', user_id, com, step, False)
+            conn = sqlite3.connect(data_base)
             cur = conn.cursor()
             cur.execute("DELETE FROM zalog_alice WHERE id = '%s'"%(user_id))
             conn.commit()
             cur.close()
             conn.close()
-            sessionStorage[user_id]['step'] = 'mainUS'
+            step = 'mainUS'
+            sessionStorage[user_id]['step'] = step
             res['response']['text'] = "Выход выполнен"
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            res['response']['buttons'] = getBut(step)
             return
 
         # Текущий счет
         elif 'текущий счет' in com:
-            res['response']['text'] = 'Текущий счет: ' + sessionStorage[user_id]['fin']
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            send_metrik('alice', user_id, com, step, False)
+            res['response']['text'] = 'Текущий счет: ' + spend
+            res['response']['buttons'] = getBut(step)
             return
 
-        elif com == 'новый расход' or com == 'новый доход':################################
+        elif com == 'новый расход' or com == 'новый доход':################################MARK#########################################################################################
+            send_metrik('alice', user_id, com, step, False)
             res['response']['text'] = """
                 Пока добавить позицию можно только командой "Добавь" + параметры
                 Пример запроса:
@@ -406,6 +483,7 @@ def handle_dialog(req, res):
 
         # Обработка добавления расхода/дохода
         elif 'добавить расход' in com or 'добавить доход' in com or 'добавь расход' in com or 'добавь доход' in com:
+            send_metrik('alice', user_id, com, step, False)
             login = sessionStorage[user_id]['login']
             udb = user_db(login)
             fin = check_fin(com)
@@ -475,12 +553,13 @@ def handle_dialog(req, res):
                 return
 
             sessionStorage[user_id]['step'] += '_addfin'
-            res['response']['text'] = 'Правильно ли я поняла, что надо добавить ' + fin[0] + ' ' + fin[1] + ' ' + str(fin[2]) + ' ' + fin[3] + ' в категории ' + fin[4] + ' за ' + str(fin[6]) + ' ' + monthR_rev[fin[7]] + ' ' + str(fin[8]) + ' года, счет: ' + fin[5] 
+            res['response']['text'] = 'Правильно ли я поняла, что надо добавить ' + fin[0] + ' ' + fin[1] + ' ' + str(fin[2]) + ' ' + fin[3] + ' в категории ' + fin[4] + ' за ' + str(fin[6]) + ' ' + monthR[fin[7]] + ' ' + str(fin[8]) + ' года, счет: ' + fin[5] 
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             vr1[user_id] = fin
             return
 
         elif com == 'новый долг':##########################
+            send_metrik('alice', user_id, com, step, False)
             res['response']['text'] = """
                 Пока добавить долг можно только командой "Добавь долг" + параметры
                 Пример запроса:
@@ -503,12 +582,14 @@ def handle_dialog(req, res):
 
         # Пользоваель сказал спасибо, завершение сессии
         elif com == 'спасибо':
+            send_metrik('alice', user_id, com, step, False)
             res['response']['text'] = 'Всегда рада помочь!'
             res['response']['end_session'] = True
             return
 
         # Добавление долга
         elif 'добавить долг' in com or 'добавь долг' in com:
+            send_metrik('alice', user_id, com, step, False)
             login = sessionStorage[user_id]['login']
             udb = user_db(login)
             debt = check_debt(com)
@@ -554,6 +635,7 @@ def handle_dialog(req, res):
 
         # Расходы за какой-то период времени
         elif 'расходы за' in com or 'доходы за' in com:
+            send_metrik('alice', user_id, com, step, False)
             login = sessionStorage[user_id]['login']
             udb = user_db(login)
             fin = check_hisfin(com)
@@ -632,6 +714,7 @@ def handle_dialog(req, res):
 
         # Смена счета
         elif ('помен' in com or 'смен' in com) and 'счет' in com:
+            send_metrik('alice', user_id, com, step, False)
             login = sessionStorage[user_id]['login']
             udb = user_db(login)
             if ' на ' in com:
@@ -684,6 +767,7 @@ def handle_dialog(req, res):
 
         # Редактирование долга
         elif 'вернул' in com or 'отдал' in com:
+            send_metrik('alice', user_id, com, step, False)
             login = sessionStorage[user_id]['login']
             udb = user_db(login)
             debt = check_eddebt(com)
@@ -757,13 +841,15 @@ def handle_dialog(req, res):
             return
 
         else:
-            res['response']['text'] = 'Я вас не понимаю. Можете воспользоваться помощью.'
+            send_metrik('alice', user_id, com, step, True)
+            res['response']['text'] = 'Я еще не понимаю такие команды. Можете воспользоваться помощью.'
             #logging.debug( u'%s: %s' % (sessionStorage[user_id]['step'], com) )
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            res['response']['buttons'] = getBut(step)
             return
 
     # Обработка команды смена счета
     elif sessionStorage[user_id]['step'] == 'main_change':
+        send_metrik('alice', user_id, com, step, False)
         login = sessionStorage[user_id]['login']
         udb = user_db(login)
         sessionStorage[user_id]['step'] = prev_step(sessionStorage[user_id]['step'])
@@ -787,12 +873,13 @@ def handle_dialog(req, res):
         
     # Редактирование долга
     elif sessionStorage[user_id]['step'] == 'main_editdebt':
+        send_metrik('alice', user_id, com, step, False)
         login = sessionStorage[user_id]['login']
         udb = user_db(login)
         debt = vr1[user_id]
         vr1.pop(user_id)
         sessionStorage[user_id]['step'] = prev_step(sessionStorage[user_id]['step'])
-        if com == 'нет' or com != 'да':
+        if com != 'да':
             res['response']['text'] = 'Ладно, этот долг мы оставим как есть'
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             return
@@ -825,12 +912,13 @@ def handle_dialog(req, res):
 
     # Добавление долга
     elif sessionStorage[user_id]['step'] == 'main_adddebt':
+        send_metrik('alice', user_id, com, step, False)
         login = sessionStorage[user_id]['login']
         udb = user_db(login)
         debt = vr1[user_id]
         vr1.pop(user_id)
         sessionStorage[user_id]['step'] = prev_step(sessionStorage[user_id]['step'])
-        if com == 'нет' or com != 'да':
+        if com != 'да':
             res['response']['text'] = 'Ладно, этот долг мы добавлять не будем'
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             return
@@ -872,12 +960,13 @@ def handle_dialog(req, res):
 
     # Добавление расхода/дохода
     elif sessionStorage[user_id]['step'] == 'main_addfin':
+        send_metrik('alice', user_id, com, step, False)
         login = sessionStorage[user_id]['login']
         udb = user_db(login)
         sessionStorage[user_id]['step'] = prev_step(sessionStorage[user_id]['step'])
         fin = vr1[user_id]
         vr1.pop(user_id)
-        if com == 'нет' or com != 'да':
+        if com != 'да':
             if fin[0] == 'расход':
                 res['response']['text'] = 'Ладно, этот расход мы добавлять не будем'
             elif fin[0] == 'доход':
@@ -923,36 +1012,28 @@ def handle_dialog(req, res):
         conn.close()
         res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
         return
-        
+
 # Просмотр счетов
+# Вход: сообщение
+# Выход: Сообщение со счетами
 def watch_bank(user_id, spn = 'все'):
     login = sessionStorage[user_id]['login']
-    udb = user_db(login)
-    kol = 0
-    osum = 0
-    sdebt = 0
-    stroka = ""
-    if spn == 'все':
-        stroka = "Ваши счета:\n"
-    conn = sqlite3.connect(udb)
-    cur = conn.cursor()
-    cur.execute("SELECT name, bal FROM bank WHERE login = '%s'"%(login))
-    for row in cur:
+    
+    banks, kol, osum = get_banks(login)
+    
+    stroka = 'Ваши счета:\n'
+
+    for elem in banks:
         if spn == 'все':
-            kol += 1
-            stroka += str(kol) + ') ' + row[0] + '\nБаланс счета: ' + str(row[1]) + ' рублей\n\n'
-            osum += row[1]
-        elif spn == row[0] or (stroka == "" and spn in row[0]):
-            kol += 1
-            stroka = 'Баланс счета ' + row[0] + ': ' + str(row[1]) + ' рублей'
+            stroka += str(kol) + ') ' + elem[0] + '\nБаланс счета: ' + str(elem[1]) + ' рублей\n\n'
+        elif spn == elem[0] or (stroka == "" and spn in elem[0]):
+            stroka = 'Баланс счета ' + elem[0] + ': ' + str(elem[1]) + ' рублей'
+
     if spn == 'все':
         stroka += 'Сумма: ' + str(round(osum,2)) + ' рублей'
-        cur.execute("SELECT sz FROM credits WHERE login = '%s'"%(login))    
-        for row in cur:
-            sdebt += row[0]
+        debts, kol1, sdebt = get_debts(login)
         stroka += '\nСумма, учитывая долги: ' + str(round(osum+sdebt,2)) + ' рублей'
-    cur.close()
-    conn.close()
+
     if kol == 0:
         if spn == 'все':
             stroka = 'У вас нет счетов'
@@ -960,69 +1041,61 @@ def watch_bank(user_id, spn = 'все'):
             stroka = 'Такого счета нет'
     return stroka
 
-# Просмотр долгов
+# Просмотр должников
+# Вход: сообщение
+# Выход: Сообщение с долгами
 def watch_debts(user_id, tp = 'all'):
     login = sessionStorage[user_id]['login']
-    udb = user_db(login)
+    
+    stroka = 'Ваши должники:\n\n'
+    debts, kol, osum = get_debts(login)
     if tp == 'sum':
-        osum = 0
-        conn = sqlite3.connect(udb)
-        cur = conn.cursor()
-        cur.execute("SELECT sz FROM credits WHERE login = '%s'"%(login))
-        for row in cur:
-            osum += row[0]
-        cur.close()
-        conn.close()
-        stroka = "Сумма долгов: " + str(osum)
-        if osum % 10 == 0 or osum % 10 > 4 or (osum % 100 > 10 and osum % 100 < 15):
-            stroka += ' рублей'
-        elif osum % 10 == 1:
-            stroka += ' рубль'
-        elif osum % 10 > 1 and osum % 10 < 5:
-            stroka += ' рубля'
+        stroka = "Сумма долгов: " + str(osum) + ' рублей'
         return stroka
-    kol = 0
-    osum = 0
-    stroka = ""
-    stroka += 'Ваши должники:\n'
-    conn = sqlite3.connect(udb)
-    cur = conn.cursor()
-    cur.execute("SELECT cred, sz, time FROM credits WHERE login = '%s'"%(login))
-    for row in cur:
-        if row[1] > 0:
-            im = row[0].split()
+    
+    for elem in debts:
+        if elem[1] > 0:
+            im = elem[0].split()
             im = im[0][-3:]
             if im == 'ова' or im == 'ева' or im == 'ина' or im == 'кая':
-                stroka += row[0] + ' должна вам ' + str(row[1]) + ' рублей с ' + row[2] + '\n'
+                stroka += elem[0] + ' должна вам ' + str(elem[1]) + ' рублей с ' + elem[2] + '\n'
             else:
-                stroka += row[0] + ' должен вам ' + str(row[1]) + ' рублей с ' + row[2] + '\n'
+                stroka += elem[0] + ' должен вам ' + str(elem[1]) + ' рублей с ' + elem[2] + '\n'
         else:
-            stroka += row[0] + ' ждет от вас ' + str(-row[1]) + ' рублей с ' + row[2] + '\n'
-        kol = kol + 1
-        osum += row[1]
-    cur.close()
-    conn.close()
+            stroka += elem[0] + ' ждет от вас ' + str(-elem[1]) + ' рублей с ' + elem[2] + '\n'
     stroka += 'Всего человек: ' + str(kol) + '\nОбщая сумма: ' + str(round(osum,2)) + ' рублей'
+
     if kol == 0:
         stroka = 'У вас нет должников'
+        
     return stroka
 
+# Просмотр истории операций
 def watch_his(user_id):
     login = sessionStorage[user_id]['login']
-    udb = user_db(login)
     fin = vr1[user_id]
+    spn = fin[2]
+    categ = fin[1]
+    if fin[3] == 0:
+        sday = 1
+        fday = 31
+    else:
+        fday = fin[3]
+        sday = fin[3]
+    smon = fin[4]
+    syear = fin[5]
+    fmon = fin[4]
+    fyear = fin[5]
+    udb = user_db(login)
     vr1.pop(user_id)
-    #return 'Данная функция находится в разработке'#str(fin)##########################################
     if fin[0] == 'расходы':
         stroka = 'Ваши расходы за '
     elif fin[0] == 'доходы':
         stroka = 'Ваши доходы за '
     if fin[3] == 0:
-        stroka += monthRim_rev[fin[4]] + ' ' + str(fin[5]) + '-го года'
+        stroka += monthRim[fin[4]] + ' ' + str(fin[5]) + '-го года'
     else:
-        stroka += str(fin[3]) + ' ' + monthR_rev[fin[4]] + ' ' + str(fin[5]) + '-го года'
-    spn = fin[2]
-    categ = fin[1]
+        stroka += str(fin[3]) + ' ' + monthR[fin[4]] + ' ' + str(fin[5]) + '-го года'
     if categ != 'все':
         stroka += " в категори " + categ
     if spn != 'все':
@@ -1030,12 +1103,6 @@ def watch_his(user_id):
     stroka += "\n"
     year = fin[5]
     mon = fin[4]
-    if fin[3] == 0:
-        sday = 1
-        fday = 31
-    else:
-        fday = fin[3]
-        sday = fin[3]
     day = sday
     osum = 0
     kod = 0
@@ -1096,22 +1163,6 @@ def watch_his(user_id):
     if kol == 0:
         stroka = "За выбранный период по данным категориям и счету ничего нет"
     return stroka
-
-# Проверка авторизации
-def check_session(user_id):
-    conn = sqlite3.connect(db)
-    cur = conn.cursor()
-    cur.execute('SELECT id, login FROM zalog_alice')
-    for row in cur:
-        if row[0] == user_id:
-            if row[1] == sessionStorage[user_id]['login']:
-                cur.close()
-                conn.close()
-                return True
-    cur.close()
-    conn.close()
-    return False
-    
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0',ssl_context='adhoc',port=7771)
