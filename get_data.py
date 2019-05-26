@@ -1,6 +1,11 @@
 import sqlite3
-from func import user_db
+from config import monthR, monthRim, directory
+from func import user_db, tday, lday
 from diag import make_diag
+
+import logging
+
+logging.basicConfig(format = u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s', level = logging.INFO, filename = directory + 'fin_alice.log')
 
 # Должники
 # Вход: логин пользователя
@@ -64,21 +69,38 @@ def get_categs(login, sect):
     return categs, kol
 
 # Получение истории расходов/доходов
-# Вход: ДД, ММ, ГГГГ, ДД, ММ, ГГГГ, id пользователя, флаг отправки данных по месяцам, флаг показа всех позиций, логин, флаг расход/доход, счет, категория
+# Вход: ДД, ММ, ГГГГ, ДД, ММ, ГГГГ, флаг отправки данных по месяцам, флаг показа всех позиций, логин, флаг расход/доход, счет, категория, флаг показа диаграммы
 # Выход: Строка отчета, флаг составлена ли диаграмма
-def get_fin_his(sday, smon, syear, fday, fmon, fyear, kod_mon, show, login, sect, spend, categ):
+def get_fin_his(sday, smon, syear, fday, fmon, fyear, kod_mon, show, login, sect, spend, categ, show_diag):
     if sect == 'spend':
-        stroka = "Ваши расходы с " + str(sday) + "." + str(smon) + "." + str(syear) + ' по ' + str(fday) + "." + str(fmon) + "." + str(fyear) + "\n"
-        title = "Расходы с " + str(sday) + "." + str(smon) + "." + str(syear) + ' по ' + str(fday) + "." + str(fmon) + "." + str(fyear)
+        stroka = "Ваши расходы "
+        title = "Расходы "
     elif sect == 'fin':
-        stroka = "Ваши доходы с " + str(sday) + "." + str(smon) + "." + str(syear) + ' по ' + str(fday) + "." + str(fmon) + "." + str(fyear) + "\n"
-        title = "Доходы с " + str(sday) + "." + str(smon) + "." + str(syear) + ' по ' + str(fday) + "." + str(fmon) + "." + str(fyear)
-    if spend != 'все':
-        stroka += "Счет: " + spend + "\n"
+        stroka = "Ваши доходы "
+        title = "Доходы "
+    if sday == fday and smon == fmon and syear == fyear:
+        if [sday, smon, syear] == tday():
+            stroka += "за сегодня (" + str(sday) + " " + monthR[smon] + " " + str(syear) + " года) "
+            title += "за сегодня (" + str(sday) + " " + monthR[smon] + " " + str(syear) + " года)"
+        elif [sday, smon, syear] == lday():
+            stroka += "за вчера (" + str(sday) + " " + monthR[smon] + " " + str(syear) + " года) "
+            title += "за вчера (" + str(sday) + " " + monthR[smon] + " " + str(syear) + " года)"
+        else:
+            stroka += "за " + str(sday) + " " + monthR[smon] + " " + str(syear) + " года "
+            title += "за " + str(sday) + " " + monthR[smon] + " " + str(syear) + " года"
+    elif smon == fmon and sday == 1 and fday == 31:
+        stroka += "за " + monthRim[smon] + " " + str(syear) + " года "
+        title += "за " + monthRim[smon] + " " + str(syear) + " года"
+    else:
+        stroka += "с " + str(sday) + " " + monthR[smon] + " " + str(syear) + ' года, по ' + str(fday) + " " + monthR[fmon] + " " + str(fyear) + " года "
+        title += "с " + str(sday) + " " + monthR[smon] + " " + str(syear) + ' года, по ' + str(fday) + " " + monthR[fmon] + " " + str(fyear) + " года"
+    if spend != '#all':
+        stroka += "со счета " + spend + " "
         title += "\nСчет: " + spend
-    if categ != 'все':
-        stroka += "Категория: " + categ + "\n"
+    if categ != '#all':
+        stroka += "в категории " + categ
     stroka += "\n"
+    s_old = stroka
     year = syear
     mon = smon
     day = sday
@@ -91,37 +113,42 @@ def get_fin_his(sday, smon, syear, fday, fmon, fyear, kod_mon, show, login, sect
     conn = sqlite3.connect(user_db(login))
     cur = conn.cursor()
     while kod == 0:
-        if spend == 'все' and categ == 'все':
+        if spend == '#all' and categ == '#all':
             if sect == 'spend':
                 cur.execute("SELECT name, sum, cat, bank FROM spend WHERE year = '%d' AND month = '%d' AND day = '%d'"%(year,mon,day))
             elif sect == 'fin':
                 cur.execute("SELECT name, sum, cat, bank FROM inc WHERE year = '%d' AND month = '%d' AND day = '%d'"%(year,mon,day))
-        elif spend != 'все' and categ == 'все':
+        elif spend != '#all' and categ == '#all':
             if sect == 'spend':
                 cur.execute("SELECT name, sum, cat, bank FROM spend WHERE year = '%d' AND month = '%d' AND day = '%d' AND bank = '%s'"%(year,mon,day,spend))
             elif sect == 'fin':
                 cur.execute("SELECT name, sum, cat, bank FROM inc WHERE year = '%d' AND month = '%d' AND day = '%d' AND bank = '%s'"%(year,mon,day,spend))
-        elif spend == 'все' and categ != 'все':
+        elif spend == '#all' and categ != '#all':
             if sect == 'spend':
                 cur.execute("SELECT name, sum, cat, bank FROM spend WHERE year = '%d' AND month = '%d' AND day = '%d' AND cat = '%s'"%(year,mon,day,categ))
             elif sect == 'fin':
                 cur.execute("SELECT name, sum, cat, bank FROM inc WHERE year = '%d' AND month = '%d' AND day = '%d' AND cat = '%s'"%(year,mon,day,categ))
-        elif spend != 'все' and categ != 'все':
+        else:
             if sect == 'spend':
                 cur.execute("SELECT name, sum FROM spend WHERE year = '%d' AND month = '%d' AND day = '%d' AND bank = '%s' AND cat = '%s'"%(year,mon,day,spend,categ))
             elif sect == 'fin':
                 cur.execute("SELECT name, sum FROM inc WHERE year = '%d' AND month = '%d' AND day = '%d' AND bank = '%s' AND cat = '%s'"%(year,mon,day,spend,categ))
-        stroka1 = str(day) + "." + str(mon) + "." + str(year) + ":\n"
+        if sday == fday and smon == fmon and syear == fyear:
+            stroka1 = ''
+        elif syear == fyear:
+            stroka1 = str(day) + " " + monthR[mon] + ':\n'
+        else:
+            stroka1 = str(day) + " " + monthR[mon] + " " + str(year) + ' года:\n'
         kol = 0
         for row in cur:
             osum += round(row[1],2)
             kol += 1
             kol1 += 1
-            if categ == 'все':
+            if categ == '#all':
+                stroka1 += row[2]
                 if kod_mon == 1:
                     if mon_s.get(str(year) + ' ' + str(mon)) == None:
                         mon_s[str(year) + ' ' + str(mon)] = dict()
-                stroka1 += "Категория: " + row[2] + "\n"
                 if cat_s.get(row[2]) != None:
                     cat_s[row[2]] += round(row[1],2)
                 else:
@@ -138,16 +165,18 @@ def get_fin_his(sday, smon, syear, fday, fmon, fyear, kod_mon, show, login, sect
                 except KeyError:
                     if kod_mon == 1:
                         mon_s[str(year) + ' ' + str(mon)] = round(row[1],2)
-            if spend == 'все':
-                stroka1 += "Счет: " + row[3] + "\n"
+            if spend == '#all':
+                if categ == '#all':
+                    stroka1 += ', '
+                stroka1 += row[3]
+            stroka1 += "\n"
             txt = row[0]
             txt = txt.split('%')
             if len(txt[0]) == 0:
-                stroka1 +=  "Сумма: " + str(round(row[1],2)) + "\n\n"
+                stroka1 +=  str(round(row[1],2)) + " рублей\n\n"
             else:
-                stroka1 +=  "Сумма: " + str(round(row[1],2)) + "\n" + txt[0] + "\n\n"
-
-            
+                stroka1 +=  txt[0] + ' ' + str(round(row[1],2)) + " рублей\n\n"
+  
         if kol > 0 and kodK == 0 and kod_mon != 1 and show == 1:
             stroka += stroka1 + "\n"
         if year == fyear and mon == fmon and day == fday:
@@ -159,19 +188,34 @@ def get_fin_his(sday, smon, syear, fday, fmon, fyear, kod_mon, show, login, sect
             if mon > 12:
                 mon = 1
                 year += 1
-        if len(stroka) >= 4000:
-            stroka = "Слишком много элементов\n"
+        if len(stroka) >= 1000:
+            stroka = s_old
             kodK = 1
 
     cur.close()
     conn.close()
-
     if kol1 == 0:
-        stroka =  "В период с " + str(sday) + "." + str(smon) + "." + str(syear) + ' по ' + str(fday) + "." + str(fmon) + "." + str(fyear) + " по данным категориям и счету ничего нет"
-        return stroka, 0
+        if sect == 'spend':
+            stroka = "У вас нет расходов "
+        elif sect == 'fin':
+            stroka = "У вас нет доходов "
+        if sday == fday and smon == fmon and syear == fyear:
+            if [sday, smon, syear] == tday():
+                stroka += "за сегодня (" + str(sday) + " " + monthR[smon] + " " + str(syear) + " года)\n"
+            elif [sday, smon, syear] == lday():
+                stroka += "за вчера (" + str(sday) + " " + monthR[smon] + " " + str(syear) + " года)\n"
+            else:
+                stroka += "за " + str(sday) + " " + monthR[smon] + " " + str(syear) + " года\n"
+        elif smon == fmon and sday == 1 and fday == 31:
+            stroka += "за " + monthRim[smon] + " " + str(syear) + " года\n"
+        else:
+            stroka += "с " + str(sday) + " " + monthR[smon] + " " + str(syear) + ' года, по ' + str(fday) + " " + monthR[fmon] + " " + str(fyear) + " года\n"
+        if spend != '#all' or categ != '#all':
+            stroka +=  " по заданным категориям и счету"
+        return stroka, 2
     
     if kod_mon == 1:
-        if categ == 'все':
+        if categ == '#all':
             for i in sorted(mon_s):
                 stroka += 'Месяц: ' + i + '\n'
                 osum1 = 0
@@ -186,7 +230,7 @@ def get_fin_his(sday, smon, syear, fday, fmon, fyear, kod_mon, show, login, sect
                 stroka += 'Сумма: ' + str(round(mon_s[i],2)) + '\n'
                 stroka += '\n'
     diag = 0
-    if categ == 'все':
+    if categ == '#all':
         diag = 1
         data_names = []
         data_values = []
@@ -200,13 +244,14 @@ def get_fin_his(sday, smon, syear, fday, fmon, fyear, kod_mon, show, login, sect
         for elem in cat_s:
             data_names.append(elem[1])
             data_values.append(round(elem[0],2))
-            stroka += elem[1] + ': ' + str(round(elem[0],2)) + '\n'
+            stroka += elem[1] + ': ' + str(round(elem[0],2)) + ' рублей\n'
         try:
-            make_diag(login, title, data_names, data_values)
+            if show_diag:
+                make_diag(login, title, data_names, data_values)
         except Exception as e:
             diag = -1       
     stroka += 'Итого: ' + str(round(osum,2))
-    while len(stroka) >= 4000:
+    while len(stroka) >= 1000:
             #bot.send_message(mid, stroka[:4000], reply_markup = MUP[users[mid]])
-            stroka = stroka[3000:]
+            stroka = stroka[500:]
     return stroka, diag

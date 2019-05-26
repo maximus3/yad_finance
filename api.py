@@ -2,7 +2,7 @@
 # Импортирует поддержку UTF-8.
 from __future__ import unicode_literals
 
-# Импортируем файл config, func, get_data
+# Импортируем файлы
 from config import *
 from func import *
 from get_data import *
@@ -26,10 +26,10 @@ import time
 import apiai
 
 # Настройка логгирования
-logging.basicConfig(format = u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s', level = logging.DEBUG, filename = u'fin_alice.log')
+logging.basicConfig(format = u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s', level = logging.INFO, filename = u'fin_alice.log')
 
 # Хранилище данных о сессиях.
-sessionStorage = {}
+sessionStorage = load_ids()
 
 # Нужные временные данные
 vr1 = dict()
@@ -39,8 +39,6 @@ P.S. Навык находится в разработке, так что воз
 Все ваши комментарии, пожелания, предложения и жалобы можно писать в телеграм-аккаунт @m3prod
 Обязательно подпишитесь на новости в телеграмме @finance_m3news, чтобы не пропускать новые обновления!
 """
-    
-sessionStorage = load_ids()
 
 # Задаем параметры приложения Flask.
 @app.route("/", methods=['POST'])
@@ -91,25 +89,12 @@ def handle_dialog(req, res):
     step = sessionStorage[user_id]['step']
     login = sessionStorage[user_id]['login']
 
-    if req['session']['new'] and com =='#button':
+    if req['session']['new'] and com == '#button':
         com = '#new_session'
 
-    if req['session']['new'] and step == 'mainUS': 
+    if (com == '' or req['session']['new']) and step == 'mainUS': 
         # Это новый пользователь.
         # Инициализируем сессию и поприветствуем его.
-
-        # Если пользоваьель уже логинился
-        #if step == 'mainUS':
-        #    res['response']['text'] = """
-        #    Добро пожаловать!
-        #    """ + beta_send
-        #    res['response']['tts'] = """
-        #    Добро пожаловать!
-        #    """
-        #    res['response']['text'] += '\nВерсия: ' + version
-        #    res['response']['tts'] += '\nВерсия: ' + version
-        #    res['response']['buttons'] = getBut(step)
-        #    return
 
         sessionStorage[user_id] = {
             'step': 'mainUS',
@@ -118,16 +103,18 @@ def handle_dialog(req, res):
         }
         res['response']['text'] = """
         Привет! Данный навык поможет вам в более удобном формате контролировать свои расходы.
-        Если вы уже зарегистрировались в телеграм-боте @debt_m3bot, то скажите вашу кодовую фразу или используйте "Помощь".
-        !!NEW!! Также, если вы уже зарегистрировались, вы можете авторизироваться нажав кнопку ниже. !!NEW!!
+        Если вы уже зарегистрировались в телеграм-боте @debt_m3bot, то нажмите кнопку "Быстрая авторизация".
+        Если вы используете устройство без экрана, то авторизируйтесь используя вашу кодовую фразу.
+        Если что-то пошло не так, то используйте команду "помощь"
         """ + beta_send
         res['response']['tts'] = """
         Привет! Данный навык поможет вам в более удобном формате контролировать свои расходы.
-        Если вы уже зарегистрировались в телеграм-боте @debt_m3bot, то скажите вашу кодовую фразу или используйте "Помощь".
-        Также, если вы уже зарегистрировались, вы можете авторизироваться нажав кнопку ниже.
+        Если вы уже зарегистрировались в телеграм-боте @debt_m3bot, то нажмите кнопку "Быстрая авторизация".
+        Если вы используете устройство без экрана, то авторизируйтесь используя вашу кодовую фразу.
+        Если что-то пошло не так, то используйте команду "помощь"
         """
-        res['response']['text'] += '\nВерсия: ' + version
-        res['response']['tts'] += '\nВерсия: ' + version
+        res['response']['text'] += '\nВерсия навыка: ' + version
+        res['response']['tts'] += '\nВерсия навыка: ' + version
         res['response']['buttons'] = getBut(step, user_id)
         send_metrik('alice', user_id, com, step, False)
         return
@@ -185,7 +172,7 @@ def handle_dialog(req, res):
         if ai_action == 'bot.description' or ai_action == 'bot.help':
             res['response']['text'] = """
 Попробуйте аторизироваться в телеграм-боте @debt_m3bot и нажать кнопку "Быстрая авторизация" ниже.
-Если у вас не получилось, то делайте следующее:
+Если у вас не получилось, то сделайте следующее:
 1) Авторизироваться в телеграм-боте @debt_m3bot и ввести команду /alice.
 2) Запишите кодовую фразу-вопрос и фразу-ответ, используя телеграм-бота.
 3) Скажите фразу-вопрос мне. Если все хорошо, то я скажу вам вашу фразу-ответ.
@@ -197,7 +184,7 @@ def handle_dialog(req, res):
             """
             res['response']['tts'] = """
 Попробуйте аторизироваться в телеграм-боте @debt_m3bot и нажать кнопку "Быстрая авторизация" ниже.
-Если у вас не получилось, то делайте следующее:
+Если у вас не получилось, то сделайте следующее:
 1) Авторизироваться в телеграм-боте @debt_m3bot и ввести команду /alice.
 2) Запишите кодовую фразу-вопрос и фразу-ответ, используя телеграм-бота.
 3) Скажите фразу-вопрос мне. Если все хорошо, то я скажу вам вашу фразу-ответ.
@@ -219,6 +206,7 @@ def handle_dialog(req, res):
                 Будет что-то непонятно - обращайтесь!
             """
             res['response']['buttons'] = getBut(step, user_id)
+            send_metrik('alice', user_id, com, step, False)
             return
 
         # Проверка фразы
@@ -255,7 +243,7 @@ def handle_dialog(req, res):
     elif step == 'mainUS_waiting':
         
         # Пользователь отменяет авторизацию
-        if ('отмени' in com) or ('отмена' in com):
+        if ai_action == 'auth.cancel':
             send_metrik('alice', user_id, com, step, False)
             if check_session(user_id, login):
                 step = 'main'
@@ -278,7 +266,7 @@ def handle_dialog(req, res):
             return
 
         # Пользователь проверяет авторизацию
-        elif 'провер' in com:
+        if ai_action == 'auth.check':
             send_metrik('alice', user_id, com, step, False)
             conn = sqlite3.connect(user_db(login))
             cur = conn.cursor()
@@ -332,10 +320,24 @@ def handle_dialog(req, res):
         if sessionStorage[user_id].get('fin') == None:
             sessionStorage[user_id]['fin'] = 'все'
 
+        login = sessionStorage[user_id]['login']
         spend = sessionStorage[user_id]['fin']
 
+        if ai_action == 'bank.whatsup' or com == '#new_session':
+            send_metrik('alice', user_id, com, step, False)
+
+            vr1 = ['расходы','все','все'] + tday()
+            tme = tday()
+            
+            if com == '#new_session':
+                res['response']['text'] = 'Добро пожаловать!\n' + get_fin_his(tme[0], tme[1], tme[2], tme[0], tme[1], tme[2], 0, 1, login, 'spend', '#all', '#all', 0)
+            else:
+                res['response']['text'] = get_fin_his(tme[0], tme[1], tme[2], tme[0], tme[1], tme[2], 0, 1, login, 'spend', '#all', '#all', 0)
+            res['response']['buttons'] = getBut(step)
+            return
+
         # Помощь
-        if com == 'помощь':
+        elif ai_action == 'bot.description' or ai_action == 'bot.help':
             send_metrik('alice', user_id, com, step, False)
             res['response']['text'] = """
             Список основных команд:
@@ -382,59 +384,46 @@ def handle_dialog(req, res):
             res['response']['buttons'] = getBut(step)
             return
 
-        # Баланс конкретного счета
-        elif 'баланс счета' in com:
+        # Баланс
+        elif ai_action == 'bank.balance':
             send_metrik('alice', user_id, com, step, False)
-            com = com.split()
-            while com[0] != 'баланс':
-                com.pop(0)
-            com.pop(0)
-            com.pop(0)
-            if com == []:
-                if spend == 'все':
-                    res['response']['text'] = 'Вы не выбрали счет'
-                    res['response']['buttons'] = getBut(step)
-                    return
-                else:
-                    com = spend
-            else:
-                com = ' '.join(com)
-            res['response']['text'] = watch_bank(user_id, com)
+
+            name_spend = ai_parameters['names_spend']
+            orig_name = ''
+
+            if name_spend:
+                banks, kol, osum = get_banks(login)
+                for elem in banks:
+                    if name_spend in elem[0]:
+                        orig_name = elem[0]
+                    if name_spend == elem[0]:
+                        orig_name = elem[0]
+                        break
+            
+            if orig_name:
+                res['response']['text'] = watch_bank(user_id, orig_name)
+                res['response']['buttons'] = getBut(step)
+                return
+            res['response']['text'] = watch_bank(user_id)
             res['response']['buttons'] = getBut(step)
             return
 
         # Сумма долгов
-        elif 'сумм' in com and 'дол' in com:
+        elif ai_action == 'debt.sum':
             send_metrik('alice', user_id, com, step, False)
             res['response']['text'] = watch_debts(user_id, 'sum')
             res['response']['buttons'] = getBut(step)
             return
 
-        # Просмотр баланса всех счетов
-        elif 'баланс' in com:
-            send_metrik('alice', user_id, com, step, False)
-            com = com.split()
-            while com[0] != 'баланс':
-                com.pop(0)
-            com.pop(0)
-            if com == []:
-                res['response']['text'] = watch_bank(user_id)
-                res['response']['buttons'] = getBut(step)
-                return
-            com = ' '.join(com)
-            res['response']['text'] = watch_bank(user_id, com)
-            res['response']['buttons'] = getBut(step)
-            return
-
         # Просмотр долгов
-        elif 'долги' in com or 'должник' in com:
+        elif ai_action == 'debt.see':
             send_metrik('alice', user_id, com, step, False)
             res['response']['text'] = watch_debts(user_id)
             res['response']['buttons'] = getBut(step)
             return
 
         # Выход из аккаунта
-        elif 'выход' in com or 'выйти' in com:
+        elif ai_action ==  'bot.log_out':
             send_metrik('alice', user_id, com, step, False)
             conn = sqlite3.connect(data_base)
             cur = conn.cursor()
@@ -449,116 +438,237 @@ def handle_dialog(req, res):
             return
 
         # Текущий счет
-        elif 'текущий счет' in com:
+        elif ai_action == 'bank.spend.see':
             send_metrik('alice', user_id, com, step, False)
             res['response']['text'] = 'Текущий счет: ' + spend
             res['response']['buttons'] = getBut(step)
             return
 
-        elif com == 'новый расход' or com == 'новый доход':################################MARK#########################################################################################
+        # Смена счета
+        elif ai_action == 'bank.spend.change':
             send_metrik('alice', user_id, com, step, False)
-            res['response']['text'] = """
-                Пока добавить позицию можно только командой "Добавь" + параметры
-                Пример запроса:
-                Добавь расход продукты 200 рублей в категории еда за 20 мая 2018 года со счета кошелек
-                Пример короткого запроса:
-                Добавь расход 200 рублей в категории еда
-                Комментарий не обязателен
-                Если не указано число, то позиция будет добавлена сегодняшним числом
-                Если не указан счет, то позиция будет добавлена на основной счет (поменять командой "смена счета", проверить командой текущий счет)
-                Структура запроса:
-                Добавь {расход/доход} [комментарий] *число* рублей в категории *название* [за] [сегодня/вчера/*число* *месяц*/*число* *месяц* *год*] [{со счета/на счет} *название*]
-                "со счета" для расхода
-                "на счет" для дохода
-            """
-            res['response']['tts'] = """
-                Пока добавить позицию можно только командой "Добавь" + параметры
-                Пример запроса:
-                Добавь расход продукты 200 рублей 50 копеек в категории еда за 20 мая 2018 года со счета кошелек
-                Пример короткого запроса:
-                Добавь расход 200 рублей в категории еда
-            """
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-            return
 
-        # Обработка добавления расхода/дохода
-        elif 'добавить расход' in com or 'добавить доход' in com or 'добавь расход' in com or 'добавь доход' in com:
-            send_metrik('alice', user_id, com, step, False)
-            login = sessionStorage[user_id]['login']
-            udb = user_db(login)
-            fin = check_fin(com)
-            if fin == None:
-                res['response']['text'] = 'Неверный формат\n'
-                res['response']['text'] += """
-                Пример запроса:
-                Добавь расход продукты 200 рублей 50 копеек в категории еда за 20 мая 2018 года со счета кошелек
-                Пример короткого запроса:
-                Добавь расход 200 рублей в категории еда
-                Комментарий не обязателен
-                Если не указано число, то позиция будет добавлена сегодняшним числом
-                Если не указан счет, то позиция будет добавлена на основной счет (поменять командой "смена счета", проверить командой текущий счет)
-                Структура запроса:
-                Добавь {расход/доход} [комментарий] *число* рублей в категории *название* [за] [сегодня/вчера/*число* *месяц*/*число* *месяц* *год*] [{со счета/на счет} *название*]
-                "со счета" для расхода
-                "на счет" для дохода
-                """
-                res['response']['tts'] = 'Неверный формат'
+            banks, kol, osum = get_banks(login)
+            
+            if ai_contexts:
+                res['response']['text'] = ai_response
+                res['response']['buttons'] = [
+                    {'title': "Все", 'hide': True}
+                ]
+                for elem in banks:
+                    res['response']['buttons'].append({
+                        "title": elem[0],
+                        "hide": True
+                    })
+                return
+
+            name_spend = ai_parameters['names_spend']
+            orig_name = ''
+
+            for elem in banks:
+                if name_spend in elem[0]:
+                    orig_name = elem[0]
+                if name_spend == elem[0]:
+                    orig_name = elem[0]
+                    break
+
+            if orig_name:
+                sessionStorage[user_id]['fin'] = orig_name
+                res['response']['text'] = 'Выбран счет ' + sessionStorage[user_id]['fin']
                 res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
                 return
-            
-            if fin[5] == 'все':
-                fin[5] = sessionStorage[user_id]['fin']
+            else:
+                res['response']['text'] = 'Такого счета нет'
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                return
+
+        elif ai_action == 'bank.add':
+            send_metrik('alice', user_id, com, step, False)
+            if ai_contexts:
+                res['response']['text'] = ai_response
+                return
+
+            sect = ai_parameters['type_pos']
+            sm = int(ai_parameters['number'])
+            categ = ai_parameters['names_categ']
+            sfin = ai_parameters['names_sfin']
+            if ai_parameters['date']:
+                tme = ai_parameters['date'].split('-')
+                tme.reverse()
+                for i in range(len(tme)):
+                    tme[i] = int(tme[i])
+            else:
+                tme = tday()
+                if ai_parameters['date_day']:
+                    tme[0] = int(ai_parameters['date_day'])
+                if ai_parameters['date_month']:
+                    tme[1] = int(ai_parameters['date_month'])
+                if ai_parameters['date_year']:
+                    tme[2] = int(ai_parameters['date_year'])
+            if ai_parameters['number1']:
+                sm = float(sm) + float(ai_parameters['number1']) / 100
+            if ai_parameters['names_spend']:
+                spend = ai_parameters['names_spend']
+            else:
+                spend = ''
 
             # Проверка правильности даты
-            tm = [0]*3
-            tm[2] = fin[8] #год
-            tm[1] = fin[7] #месяц
-            tm[0] = fin[6] #день
-            if tm[1] < 1 or tm[1] > 12 or tm[0] < 1 or tm[0] > 31:
+            if tme[1] < 1 or tme[1] > 12 or tme[0] < 1 or tme[0] > 31:
                 res['response']['text'] = 'Неправильная дата'
                 res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
                 return
-            
+
             # Проверка существования категории
-            conn = sqlite3.connect(udb)
-            cur = conn.cursor()
-            if fin[0] == 'расход':
-                cur.execute("SELECT cat FROM cats WHERE login = '%s'"%(login))
-            elif fin[0] == 'доход':
-                cur.execute("SELECT cat FROM fcats WHERE login = '%s'"%(login))
-            kod = 1
-            for row in cur:
-                if row[0] == fin[4] or (fin[4] in row[0] and kod == 1):
-                    kod = 0
-                    fin[4] = row[0]
-            if kod == 1:
-                res['response']['text'] = 'Неправильная категория'
-                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-                cur.close()
-                conn.close()
-                return
-            
-            # Проверка существования счета
-            cur.execute("SELECT name FROM bank WHERE login = '%s'"%(login))
-            kod = 1
-            for row in cur:
-                if row[0] == fin[5] or (fin[5] in row[0] and kod == 1):
-                    kod = 0
-                    fin[5] = row[0]
-            cur.close()
-            conn.close()
-            if kod == 1:
-                res['response']['text'] = 'Неправильный счет' 
+            categs, kol = get_categs(login, sect)
+            if categ not in categs:
+                for elem in categs:
+                    if categ in elem:
+                        categ = elem
+                        break
+                res['response']['text'] = 'Такой категории не найдено'
                 res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
                 return
 
+            # Проверка существования счета
+            banks, kol, osum = get_banks(login)
+            for i in range(len(banks)):
+                banks[i] = banks[i][0]
+            if spend not in banks:
+                for elem in banks:
+                    if spend in elem:
+                        spend = elem
+                        break
+                res['response']['text'] = 'Такого счета не найдено'
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                return
+
+            if sm < 0:
+                res['response']['text'] = 'Некорректное число'
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                return
+
+            if sect == 'spend':
+                view_sect = 'расход'
+            else:
+                view_sect = 'доход'
+
+            fin = [view_sect, sfin, sm, categ, spend] + tme
+            
             sessionStorage[user_id]['step'] += '_addfin'
-            res['response']['text'] = 'Правильно ли я поняла, что надо добавить ' + fin[0] + ' ' + fin[1] + ' ' + str(fin[2]) + ' ' + fin[3] + ' в категории ' + fin[4] + ' за ' + str(fin[6]) + ' ' + monthR[fin[7]] + ' ' + str(fin[8]) + ' года, счет: ' + fin[5] 
+            res['response']['text'] = 'Правильно ли я поняла, что надо добавить ' + fin[0] + ' ' + fin[1] + ' ' + str(fin[2]) + ' рублей в категории ' + fin[3] + ' за ' + str(fin[5]) + ' ' + monthR[fin[6]] + ' ' + str(fin[7]) + ' года, счет: ' + fin[4] 
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             vr1[user_id] = fin
             return
 
-        elif com == 'новый долг':##########################
+        elif ai_action == 'bank.history':
+            send_metrik('alice', user_id, com, step, False)
+            if ai_contexts:
+                res['response']['text'] = ai_response
+                return
+
+            sect = ai_parameters['type_pos']
+            if ai_parameters['names_categ']:
+                categ = ai_parameters['names_categ']
+            else:
+                categ = '#all'
+            if ai_parameters['names_spend']:
+                spend = ai_parameters['names_spend']
+            else:
+                spend = '#all'
+            if ai_parameters['date']:
+                tme = ai_parameters['date'].split('-')
+                tme.reverse()
+                for i in range(len(tme)):
+                    tme[i] = int(tme[i])
+                tme_s = tme
+                tme_f = tme
+            elif ai_parameters['date_day'] or ai_parameters['date_month'] or ai_parameters['date_year']:
+                tme = [0,0,0]
+                if ai_parameters['date_day']:
+                    tme[0] = int(ai_parameters['date_day'])
+                if ai_parameters['date_month']:
+                    tme[1] = int(ai_parameters['date_month'])
+                if ai_parameters['date_year']:
+                    tme[2] = int(ai_parameters['date_year'])
+                if tme[0]:
+                    tme_s = tme
+                    tme_f = tme
+                elif tme[1]:
+                    tme_s = [1, tme[1], tme[2]]
+                    tme_f = [31, tme[1], tme[2]]
+                else:
+                    tme_s = [1, 1, tme[2]]
+                    tme_f = [31, 12, tme[2]]
+            else:
+                tme = tday()
+                if ai_parameters['view_date'] == 'day':
+                    tme_s = tme
+                    tme_f = tme
+                    if ai_parameters['type_date'] == '-1':
+                        tme_s = day_min(1, b = tme_s)
+                        tme_f = tme_s
+                if ai_parameters['view_date'] == 'month':
+                    tme_s = [1, tme[1], tme[2]]
+                    tme_f = [31, tme[1], tme[2]]
+                    if ai_parameters['type_date'] == '-1':
+                        tme_f = day_min(1, b = [1, tme_f[1], tme_f[2]])
+                        tme_s = [1, tme_f[1], tme_f[2]]
+                if ai_parameters['view_date'] == 'year':
+                    tme_s = [1, 1, tme[2]]
+                    tme_f = [31, 12, tme[2]]
+                    if ai_parameters['type_date'] == '-1':
+                        tme_f = day_min(1, b = [1, 1, tme_f[2]])
+                        tme_s = [1, 1, tme_f[2]]
+                if ai_parameters['view_date'] == 'week':
+                    k = 0
+                    if ai_parameters['type_date'] == '-1':
+                        k = 7
+                    tme = tweek(k)
+                    tme_s = [tme[0], tme[1], tme[2]]
+                    tme_f = [tme[3], tme[4], tme[5]]
+
+            # Проверка правильности даты
+            if tme_s[1] < 1 or tme_s[1] > 12 or tme_s[0] < 1 or tme_s[0] > 31:
+                res['response']['text'] = 'Неправильная дата'
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                return
+            if tme_f[1] < 1 or tme_f[1] > 12 or tme_f[0] < 1 or tme_f[0] > 31:
+                res['response']['text'] = 'Неправильная дата'
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                return
+
+            # Проверка существования категории
+            categs, kol = get_categs(login, sect)
+            if categ not in categs and categ != '#all':
+                for elem in categs:
+                    if categ in elem:
+                        categ = elem
+                        break
+                res['response']['text'] = 'Такой категории не найдено'
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                return
+
+            # Проверка существования счета
+            banks, kol, osum = get_banks(login)
+            for i in range(len(banks)):
+                banks[i] = banks[i][0]
+            if spend not in banks and spend != '#all':
+                for elem in banks:
+                    if spend in elem:
+                        spend = elem
+                        break
+                res['response']['text'] = 'Такого счета не найдено'
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                return
+
+            res['response']['text'] = get_fin_his(tme_s[0], tme_s[1], tme_s[2], tme_f[0], tme_f[1], tme_f[2], 0, 0, login, sect, spend, categ, 0)
+            res['response']['buttons'] = getBut(step)
+            return
+                    
+
+        ######################################################################################################################
+
+        elif com == 'новый долг':###################################################################################################################
             send_metrik('alice', user_id, com, step, False)
             res['response']['text'] = """
                 Пока добавить долг можно только командой "Добавь долг" + параметры
@@ -578,13 +688,6 @@ def handle_dialog(req, res):
                 Добавь долг Иванов Иван 200 рублей
             """
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-            return
-
-        # Пользоваель сказал спасибо, завершение сессии
-        elif com == 'спасибо':
-            send_metrik('alice', user_id, com, step, False)
-            res['response']['text'] = 'Всегда рада помочь!'
-            res['response']['end_session'] = True
             return
 
         # Добавление долга
@@ -631,138 +734,6 @@ def handle_dialog(req, res):
             res['response']['text'] = 'Правильно ли я поняла, что надо добавить долг ' + debt[0] + ' ' + debt[1] + ' ' + str(debt[2]) + ' ' + debt[4] + ' со счета: ' + debt[3] 
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             vr1[user_id] = debt
-            return
-
-        # Расходы за какой-то период времени
-        elif 'расходы за' in com or 'доходы за' in com:
-            send_metrik('alice', user_id, com, step, False)
-            login = sessionStorage[user_id]['login']
-            udb = user_db(login)
-            fin = check_hisfin(com)
-            if fin == None:
-                res['response']['text'] = 'Неверный формат\n'
-                res['response']['text'] += """
-                Пример запроса:
-                Покажи мне расходы за 20 мая 2018 года в категории еда со счета кошелек
-                Покажи мне расходы за 20 мая в категории еда со всех счетов
-                Пример короткого запроса:
-                Расходы за сегодня
-                Если не указана категория, то будут показаны последние 10 расходов/доходов во всех категориях
-                Если не указан счет, то будут показаны расходы/доходы с основного счета (поменять командой "смена счета", проверить командой текущий счет)
-                Структура запроса:
-                [Покажи мне] {расходы/доходы} за {сегодня/вчера/этот месяц/прошлый месяц/*месяц*/*месяц* *год*/*число* *месяц*/*число* *месяц* *год*} [в категории *название*] [со счета *название*]
-                """
-                res['response']['tts'] = 'Неверный формат'
-                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-                return
-
-            if fin[2] == 'all':
-                fin[2] = sessionStorage[user_id]['fin']
-
-            # Проверка правильности даты
-            tm = [0]*3
-            tm[2] = fin[5] #год
-            tm[1] = fin[4] #месяц
-            tm[0] = fin[3] #день
-            if tm[1] < 1 or tm[1] > 12 or tm[0] < 0 or tm[0] > 31:
-                res['response']['text'] = 'Неправильная дата'
-                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-                return
-            
-            # Проверка существования категории
-            if fin[1] != 'все':
-                conn = sqlite3.connect(udb)
-                cur = conn.cursor()
-                if fin[0] == 'расходы':
-                    cur.execute("SELECT cat FROM cats WHERE login = '%s'"%(login))
-                elif fin[0] == 'доходы':
-                    cur.execute("SELECT cat FROM fcats WHERE login = '%s'"%(login))
-                kod = 1
-                for row in cur:
-                    if row[0] == fin[1] or (fin[1] in row[0] and kod == 1):
-                        kod = 0
-                        fin[1] = row[0]
-                cur.close()
-                conn.close()
-                if kod == 1:
-                    res['response']['text'] = 'Неправильная категория'
-                    res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])    
-                    return
-
-            # Проверка существования счета
-            if fin[2] != 'все':
-                conn = sqlite3.connect(udb)
-                cur = conn.cursor()
-                cur.execute("SELECT name FROM bank WHERE login = '%s'"%(login))
-                kod = 1
-                for row in cur:
-                    if row[0] == fin[2] or ((fin[2] in row[0]) and kod == 1):
-                        kod = 0
-                        fin[2] = row[0]
-                cur.close()
-                conn.close()
-                if kod == 1:
-                    res['response']['text'] = 'Неправильный счет' 
-                    res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-                    return
-
-
-            vr1[user_id] = fin
-            res['response']['text'] = watch_his(user_id)
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-            return
-
-        # Смена счета
-        elif ('помен' in com or 'смен' in com) and 'счет' in com:
-            send_metrik('alice', user_id, com, step, False)
-            login = sessionStorage[user_id]['login']
-            udb = user_db(login)
-            if ' на ' in com:
-                com = com.split(' на ')
-                com.pop(0)
-                com = ' на '.join(com)
-                if com == 'все':
-                    sessionStorage[user_id]['fin'] = 'все'
-                    res['response']['text'] = 'Выбраны все счета'
-                    res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-                    return
-                conn = sqlite3.connect(udb)
-                cur = conn.cursor()
-                cur.execute("SELECT name FROM bank WHERE login = '%s'"%(login))
-                kod = 1
-                for row in cur:
-                    if row[0] == com or (com in row[0] and kod == 1):
-                        kod = 0
-                        sessionStorage[user_id]['fin'] = row[0]
-                cur.close()
-                conn.close()
-                if kod == 1:
-                    res['response']['text'] = 'Такого счета нет'
-                    res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-                    return
-                
-                res['response']['text'] = 'Выбран счет ' + sessionStorage[user_id]['fin']
-                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-                return
-                
-            sessionStorage[user_id]['step'] += '_change'
-                
-            res['response']['buttons'] = [
-                {'title': "Все", 'hide': True}
-            ]
-            conn = sqlite3.connect(udb)
-            cur = conn.cursor()
-            vr1[user_id] = []
-            cur.execute("SELECT name FROM bank WHERE login = '%s'"%(login))
-            for row in cur:
-                res['response']['buttons'].append({
-                    "title": row[0],
-                    "hide": True
-                })
-                vr1[user_id].append(row[0].lower())
-            cur.close()
-            conn.close()
-            res['response']['text'] = 'Выберите другой счет'
             return
 
         # Редактирование долга
@@ -842,33 +813,11 @@ def handle_dialog(req, res):
 
         else:
             send_metrik('alice', user_id, com, step, True)
-            res['response']['text'] = 'Я еще не понимаю такие команды. Можете воспользоваться помощью.'
-            #logging.debug( u'%s: %s' % (sessionStorage[user_id]['step'], com) )
+            if ai_response:
+                res['response']['text'] = ai_response
+            else:
+                res['response']['text'] = 'Я еще не понимаю такие команды. Можете воспользоваться помощью.'
             res['response']['buttons'] = getBut(step)
-            return
-
-    # Обработка команды смена счета
-    elif sessionStorage[user_id]['step'] == 'main_change':
-        send_metrik('alice', user_id, com, step, False)
-        login = sessionStorage[user_id]['login']
-        udb = user_db(login)
-        sessionStorage[user_id]['step'] = prev_step(sessionStorage[user_id]['step'])
-        if com == 'все':
-            sessionStorage[user_id]['fin'] = 'все'
-            res['response']['text'] = 'Выбраны все счета'
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-            vr1.pop(user_id)
-            return
-        elif com not in vr1[user_id]:
-            res['response']['text'] = 'Такого счета нет'
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-            vr1.pop(user_id)
-            return
-        else:
-            sessionStorage[user_id]['fin'] = com
-            res['response']['text'] = 'Выбран счет ' + sessionStorage[user_id]['fin']
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-            vr1.pop(user_id)
             return
         
     # Редактирование долга
@@ -974,11 +923,11 @@ def handle_dialog(req, res):
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             return
         tm = [0]*3
-        tm[2] = fin[8] #год
-        tm[1] = fin[7] #месяц
-        tm[0] = fin[6] #день
-        categ = fin[4] #категория
-        spn = fin[5] #счет
+        tm[2] = fin[7] #год
+        tm[1] = fin[6] #месяц
+        tm[0] = fin[5] #день
+        categ = fin[3] #категория
+        spn = fin[4] #счет
         des = fin[1] #описание
         ras = fin[2]
         

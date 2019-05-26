@@ -212,10 +212,11 @@ def tweek(k = 0):
     return day_min(a[0] - 1, a) + day_plus(7 - a[0], a)
 
 # Отнять k дней
-# Вход: Число k; (не обязательно) список вида time.asctime.split()
+# Вход: Число k; (не обязательно) список вида time.asctime.split(); (не обязательно) список ДД, ММ, ГГГГ
 # Выход: список вида ДД, ММ, ГГГГ (-k дней от даты a)
-def day_min(k, a = time.asctime().split()):
-    b = [int(a[2]),month[a[1]],int(a[4])]
+def day_min(k, a = time.asctime().split(), b = []):
+    if b == []:
+        b = [int(a[2]),month[a[1]],int(a[4])]
     v = 0
     if b[2]%4 == 0:
         v = 1
