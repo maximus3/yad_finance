@@ -4,12 +4,14 @@ import logging
 
 logging.basicConfig(format = u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s', level = logging.DEBUG)#, filename = u'mylog.log')
 
+# ChatBase
+metrik_key = 'TOKEN_HERE'
 
 # Общая база данных
 db = '/root/debt/my.db'
 
 # Версия
-version = '0.5.2 Beta'
+version = '0.5.3 Beta'
 
 month = {'Jan':1,'Feb':2,'Mar':3,'Apr':4,'May':5,'Jun':6,'Jul':7,'Aug':8,'Sep':9,'Oct':10,'Nov':11,'Dec':12}
 monthRim = {'январь':1,'февраль':2,'март':3,'апрель':4,'май':5,'июнь':6,'июль':7,'август':8,'сентябрь':9,'октябрь':10,'ноябрь':11,'декабрь':12}

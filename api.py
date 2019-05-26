@@ -19,6 +19,9 @@ import sqlite3
 # Модуль для работы с датой (временем)
 import time
 
+# Модуль для работы с метрикой
+from chatbase import Message
+
 # Настройка логгирования
 logging.basicConfig(format = u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s', level = logging.DEBUG)#, filename = u'mylog.log')
 
@@ -73,6 +76,23 @@ def handle_dialog(req, res):
 
     com = req['request']['command'].lower()
 
+    metrik_id = user_id
+    # if not (check_session(user_id)):
+    #     metrik_id = user_id
+    # else:
+    #     metrik_id = sessionStorage[user_id]['login']
+    if not (check_session(user_id)):
+        user_step = 'mainUS'
+    else:
+        user_step = sessionStorage[user_id]['step']
+    msg = Message(api_key=metrik_key,
+                  platform="alice",
+                  user_id=metrik_id,
+                  message=com,
+                  intent="alice_"+user_step,
+                  not_handled=False)
+    resp = msg.send()
+
     if req['session']['new']: 
         # Это новый пользователь.
         # Инициализируем сессию и поприветствуем его.
@@ -121,10 +141,10 @@ def handle_dialog(req, res):
         # Пользователь попросил помощь
         if com == 'помощь':
             res['response']['text'] = """
-                Итак, для начала вы должны авторизироваться в телеграм-боте и ввести команду /alice.
+                Итак, для начала вы должны авторизироваться в телеграм-боте @debt_m3bot и ввести команду /alice.
                 После этого бот предложит вам записать кодовую фразу. Запишите ее.
                 Далее вам необходимо сказать фразу-вопрос мне. Если все хорошо, то в я скажу вам вашу фразу-ответ.
-                После этого вы опять долны мне сказать что-то, что я отправлю в телеграм-бота.
+                После этого вы опять должны мне сказать что-то, что я отправлю в телеграм-бота.
                 Вы тоже должны зайти в телеграм и опять ввести команду /alice.
                 Если бот прислал вам ту фразу, что вы сказали мне последней, то вам осталось всего лишь нажать кнопку "ДА" и пользоваться!
                 Удачи!
