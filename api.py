@@ -20,7 +20,7 @@ import sqlite3
 import time
 
 # Настройка логгирования
-logging.basicConfig(format = u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s', level = logging.DEBUG, filename = u'mylog.log')
+logging.basicConfig(format = u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s', level = logging.DEBUG)#, filename = u'mylog.log')
 
 # Хранилище данных о сессиях.
 sessionStorage = {}
@@ -71,7 +71,6 @@ def main():
 def handle_dialog(req, res):
     user_id = req['session']['user_id']
 
-   
     com = req['request']['command'].lower()
 
     if req['session']['new']: 
@@ -81,7 +80,8 @@ def handle_dialog(req, res):
         # Если пользоваьель уже логинился
         if sessionStorage.get(user_id) is not None:
             res['response']['text'] = """
-            Добро пожаловать!\nP.S. Навык находится в разработке, так что возможны ошибки, заранее прошу прощения.
+            Добро пожаловать!
+            P.S. Навык находится в разработке, так что возможны ошибки, заранее прошу прощения.
             По всем вопросам и предложениям можно писать в телеграм-аккаунт @m3prod
             """
             res['response']['tts'] = """
@@ -511,7 +511,7 @@ def handle_dialog(req, res):
             return
 
         # Расходы за какой-то период времени
-        elif 'расходы за' in com or 'доходы за' in com:################################################
+        elif 'расходы за' in com or 'доходы за' in com:
             login = sessionStorage[user_id]['login']
             udb = user_db(login)
             fin = check_hisfin(com)

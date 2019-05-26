@@ -2,14 +2,14 @@ import sqlite3
 import time
 import logging
 
-logging.basicConfig(format = u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s', level = logging.DEBUG, filename = u'mylog.log')
+logging.basicConfig(format = u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s', level = logging.DEBUG)#, filename = u'mylog.log')
 
 
 # Общая база данных
 db = '/root/debt/my.db'
 
 # Версия
-version = '0.5.0 Beta'
+version = '0.5.2 Beta'
 
 month = {'Jan':1,'Feb':2,'Mar':3,'Apr':4,'May':5,'Jun':6,'Jul':7,'Aug':8,'Sep':9,'Oct':10,'Nov':11,'Dec':12}
 monthRim = {'январь':1,'февраль':2,'март':3,'апрель':4,'май':5,'июнь':6,'июль':7,'август':8,'сентябрь':9,'октябрь':10,'ноябрь':11,'декабрь':12}
@@ -24,6 +24,8 @@ desc_uo = """
 Добавлено минимальное логгирование
 Добавлена функция редактирования долгов
 0.5.1:
+Небольшие фиксы
+0.5.2:
 Небольшие фиксы
 """
 
@@ -395,10 +397,8 @@ def check_hisfin(text):
                 if text.pop(0) != 'со':
                     logging.debug( u'check_hisfin - 2' )
                     return None
-                if text[0] == 'всех':
-                    text.pop(0)
-                    text.pop(0)
-                    fin[2] == 'все'
+                if text[0] == 'всех' and 'счет' in text[1]:
+                    fin[2] = 'все'
                     return fin
                 if 'счет' not in text.pop(0):
                     logging.debug( u'check_hisfin - 3' )
@@ -415,10 +415,8 @@ def check_hisfin(text):
         if text.pop(0) != 'со':
             logging.debug( u'check_hisfin - 4' )
             return None
-        if text[0] == 'всех':
-            text.pop(0)
-            text.pop(0)
-            fin[2] == 'все'
+        if text[0] == 'всех' and 'счет' in text[1]:
+            fin[2] = 'все'
             return fin
         if 'счет' not in text.pop(0):
             logging.debug( u'check_hisfin - 5' )
