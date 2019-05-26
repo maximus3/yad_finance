@@ -5,7 +5,7 @@ import time
 db = '/root/debt/my.db'
 
 # Версия
-version = '0.3.0 Beta'
+version = '0.4.0 Beta'
 
 month = {'Jan':1,'Feb':2,'Mar':3,'Apr':4,'May':5,'Jun':6,'Jul':7,'Aug':8,'Sep':9,'Oct':10,'Nov':11,'Dec':12}
 monthR = {'января':1,'февраля':2,'марта':3,'апреля':4,'мая':5,'июня':6,'июля':7,'августа':8,'сентября':9,'октября':10,'ноября':11,'декабря':12}
@@ -137,9 +137,13 @@ def check_fin(text):
                 fin[1] += ' '
         fin[2] = round(float(check_num((text[0]))),2)
         text.pop(0)
+        fin[3] = text.pop(0)
+        if text[1] == 'копеек' or text[1] == 'копейки' or text[1] == 'копейка':
+            fin[2] += round(float(check_num((text[0]))),0)/100
+            text.pop(0)
+            text.pop(0)
         if fin[2] < 0:
             return None
-        fin[3] = text.pop(0)
         if text[0] != 'в' or text[1] != 'категории':
             if text[0] != 'категории':
                 return None
@@ -212,6 +216,10 @@ def check_debt(text):
             debt[2] = round(float(check_num((text[0]))),2)
         text.pop(0)
         debt[4] = text.pop(0)
+        if text[1] == 'копеек' or text[1] == 'копейки' or text[1] == 'копейка':
+            debt[2] += round(float(check_num((text[0]))),0)/100
+            text.pop(0)
+            text.pop(0)
         if text == []:
             debt[3] = 'все'
             return debt

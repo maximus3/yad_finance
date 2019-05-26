@@ -236,7 +236,15 @@ def handle_dialog(req, res):
                 com.pop(0)
             com.pop(0)
             com.pop(0)
-            com = ' '.join(com)
+            if com == []:
+                if sessionStorage[user_id]['fin'] == 'все':
+                    res['response']['text'] = 'Вы не выбрали счет'
+                    res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                    return
+                else:
+                    com = sessionStorage[user_id]['fin']
+            else:
+                com = ' '.join(com)
             res['response']['text'] = watch_bank(user_id, com)
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             return
@@ -249,7 +257,16 @@ def handle_dialog(req, res):
 
         # Просмотр баланса всех счетов
         elif 'баланс' in com:
-            res['response']['text'] = watch_bank(user_id)
+            com = com.split()
+            while com[0] != 'баланс':
+                com.pop(0)
+            com.pop(0)
+            if com == []:
+                res['response']['text'] = watch_bank(user_id)
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                return
+            com = ' '.join(com)
+            res['response']['text'] = watch_bank(user_id, com)
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             return
 
@@ -296,7 +313,7 @@ def handle_dialog(req, res):
             res['response']['tts'] = """
                 Пока добавить позицию можно только командой "Добавь" + параметры
                 Пример запроса:
-                Добавь расход продукты 200 рублей в категории еда за 20 мая 2018 года со счета кошелек
+                Добавь расход продукты 200 рублей 50 копеек в категории еда за 20 мая 2018 года со счета кошелек
                 Пример короткого запроса:
                 Добавь расход 200 рублей в категории еда
             """
@@ -309,9 +326,24 @@ def handle_dialog(req, res):
             udb = user_db(login)
             fin = check_fin(com)
             if fin == None:
-                res['response']['text'] = 'Неверный формат'
+                res['response']['text'] = 'Неверный формат\n'
+                res['response']['text'] += """
+                Пример запроса:
+                Добавь расход продукты 200 рублей 50 копеек в категории еда за 20 мая 2018 года со счета кошелек
+                Пример короткого запроса:
+                Добавь расход 200 рублей в категории еда
+                Комментарий не обязателен
+                Если не указано число, то позиция будет добавлена сегодняшним числом
+                Если не указан счет, то позиция будет добавлена на основной счет (поменять командой "смена счета", проверить командой текущий счет)
+                Структура запроса:
+                Добавь {расход/доход} [комментарий] *число* рублей в категории *название* [за] [сегодня/вчера/*число* *месяц*/*число* *месяц* *год*] [{со счета/на счет} *название*]
+                "со счета" для расхода
+                "на счет" для дохода
+                """
+                res['response']['tts'] = 'Неверный формат'
                 res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
                 return
+            
             if fin[5] == 'все':
                 fin[5] = sessionStorage[user_id]['fin']
 
@@ -368,7 +400,7 @@ def handle_dialog(req, res):
             res['response']['text'] = """
                 Пока добавить долг можно только командой "Добавь долг" + параметры
                 Пример запроса:
-                Добавь долг Иванов Иван 200 рублей со счета кошелек
+                Добавь долг Иванов Иван 200 рублей 50 копеек со счета кошелек
                 Пример короткого запроса:
                 Добавь долг Иванов Иван 200 рублей
                 Если не указан счет, то позиция будет добавлена на основной счет (поменять командой "смена счета", проверить командой текущий счет)
@@ -385,6 +417,12 @@ def handle_dialog(req, res):
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             return
 
+        # Пользоваель сказал спасибо, завершение сессии
+        elif com == 'спасибо':
+            res['response']['text'] = 'Всегда рада помочь!'
+            res['response']['end_session'] = True
+            return
+
         # Добавление долга
         elif 'добавить долг' in com or 'добавь долг' in com:
             login = sessionStorage[user_id]['login']
@@ -392,6 +430,16 @@ def handle_dialog(req, res):
             debt = check_debt(com)
             if debt == None:
                 res['response']['text'] = 'Неверный формат'
+                res['response']['text'] += """
+                Пример запроса:
+                Добавь долг Иванов Иван 200 рублей 50 копеек со счета кошелек
+                Пример короткого запроса:
+                Добавь долг Иванов Иван 200 рублей
+                Если не указан счет, то позиция будет добавлена на основной счет (поменять командой "смена счета", проверить командой текущий счет)
+                Структура запроса:
+                Добавь долг *фамилия* *имя* *число* рублей [со счета *название*]
+                """
+                res['response']['tts'] = 'Неверный формат'
                 res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
                 return
 
@@ -422,21 +470,20 @@ def handle_dialog(req, res):
             
 
         # Удаление долга
-        elif 'удалить долг' in com:###########################################################3
-            return
-
-        # Пользоваель сказал спасибо, завершение сессии
-        elif com == 'спасибо':
-            res['response']['text'] = 'Всегда рада помочь!'
-            res['response']['end_session'] = True
+        elif 'удалить долг' in com or 'удали долг' in com:###########################################################
+            res['response']['text'] = 'Пока я это не умею'
+            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             return
 
         # Расходы за какой-то период времени
         elif 'расходы за' in com or 'доходы за' in com:################################################
+            res['response']['text'] = 'Пока я это не умею'
+            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             return
 
+
         # Смена счета
-        elif 'мен' in com and 'счет' in com:
+        elif ('помен' in com or 'смен' in com) and 'счет' in com:
             login = sessionStorage[user_id]['login']
             udb = user_db(login)
             if ' на ' in com:
@@ -446,19 +493,22 @@ def handle_dialog(req, res):
                 conn = sqlite3.connect(udb)
                 cur = conn.cursor()
                 cur.execute("SELECT name FROM bank WHERE login = '%s'"%(login))
+                kod = 1
                 for row in cur:
-                    if row[0] == com or (com in row[0]):################# названия похожи
+                    if row[0] == com or (com in row[0] and kod == 1):
+                        kod = 0
                         sessionStorage[user_id]['fin'] = row[0]
-                        res['response']['text'] = 'Выбран счет ' + sessionStorage[user_id]['fin']
-                        res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-                        cur.close()
-                        conn.close()
-                        return
                 cur.close()
                 conn.close()
-                res['response']['text'] = 'Такого счета нет'
+                if kod == 1:
+                    res['response']['text'] = 'Такого счета нет'
+                    res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                    return
+                
+                res['response']['text'] = 'Выбран счет ' + sessionStorage[user_id]['fin']
                 res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
                 return
+                
             sessionStorage[user_id]['step'] += '_change'
                 
             res['response']['buttons'] = [
@@ -509,13 +559,13 @@ def handle_dialog(req, res):
     elif sessionStorage[user_id]['step'] == 'main_adddebt':
         login = sessionStorage[user_id]['login']
         udb = user_db(login)
+        debt = vr1[user_id]
+        vr1.pop(user_id)
         sessionStorage[user_id]['step'] = prev_step(sessionStorage[user_id]['step'])
         if com == 'нет' or com != 'да':
             res['response']['text'] = 'Ладно, этот долг мы добавлять не будем'
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             return
-        debt = vr1[user_id]
-        vr1.pop(user_id)
         fam, im, dolg = debt[0], debt[1], str(debt[2])
         fam, im = fam + ' ' + im, im + ' ' + fam
         if check_text(fam.lower(), 'rus'):
@@ -552,21 +602,20 @@ def handle_dialog(req, res):
         res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
         return
 
-
-
-        
-
     # Добавление расхода/дохода
     elif sessionStorage[user_id]['step'] == 'main_addfin':
         login = sessionStorage[user_id]['login']
         udb = user_db(login)
         sessionStorage[user_id]['step'] = prev_step(sessionStorage[user_id]['step'])
-        if com == 'нет' or com != 'да':
-            res['response']['text'] = 'Ладно, этот расход мы добавлять не будем'
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-            return
         fin = vr1[user_id]
         vr1.pop(user_id)
+        if com == 'нет' or com != 'да':
+            if fin[0] == 'расход':
+                res['response']['text'] = 'Ладно, этот расход мы добавлять не будем'
+            elif fin[0] == 'доход':
+                res['response']['text'] = 'Ладно, этот доход мы добавлять не будем'
+            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            return
         tm = [0]*3
         tm[2] = fin[8] #год
         tm[1] = fin[7] #месяц
@@ -597,12 +646,13 @@ def handle_dialog(req, res):
         cur.execute("UPDATE bank SET bal = '%f' WHERE login = '%s' AND name = '%s'"%(bal,login,spn))
         if fin[0] == 'расход':
             cur.execute("INSERT INTO spend (login,year,month,day,cat,bank,name,sum) VALUES ('%s','%d','%d','%d','%s','%s','%s','%f')"%(login,tm[2],tm[1],tm[0],categ,spn,des,ras))
+            res['response']['text'] = 'Расход успешно добавлен, баланс счета ' + spn + ': ' + str(bal)
         elif fin[0] == 'доход':
             cur.execute("INSERT INTO inc (login,year,month,day,cat,bank,name,sum) VALUES ('%s','%d','%d','%d','%s','%s','%s','%f')"%(login,tm[2],tm[1],tm[0],categ,spn,des,ras))
+            res['response']['text'] = 'Доход успешно добавлен, баланс счета ' + spn + ': ' + str(bal)
         conn.commit()
         cur.close()
         conn.close()
-        res['response']['text'] = 'Расход успешно добавлен'
         res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
         return
         
