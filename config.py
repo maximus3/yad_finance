@@ -5,7 +5,7 @@ import time
 db = '/root/debt/my.db'
 
 # Версия
-version = '0.2.0 Beta'
+version = '0.3.0 Beta'
 
 month = {'Jan':1,'Feb':2,'Mar':3,'Apr':4,'May':5,'Jun':6,'Jul':7,'Aug':8,'Sep':9,'Oct':10,'Nov':11,'Dec':12}
 monthR = {'января':1,'февраля':2,'марта':3,'апреля':4,'мая':5,'июня':6,'июля':7,'августа':8,'сентября':9,'октября':10,'ноября':11,'декабря':12}
@@ -66,20 +66,32 @@ def getBut(step):
                     "hide": True
                 },
                 {
-                    "title": "Выход",
-                    "hide": True
-                },
-                {
                     "title": "Текущий счет",
                     "hide": True
                 },
                 {
                     "title": "Смена счета",
                     "hide": True
+                },
+                {
+                    "title": "Выход",
+                    "hide": True
                 }
             ]
 
     elif step == 'main_addfin':
+        buttons = [
+                {
+                    "title": "Да",
+                    "hide": True
+                },
+                {
+                    "title": "Нет",
+                    "hide": True
+                }
+            ]
+
+    elif step == 'main_adddebt':
         buttons = [
                 {
                     "title": "Да",
@@ -181,6 +193,38 @@ def check_fin(text):
     except Exception:
         return None
 
+def check_debt(text):
+    try:
+        text = text.split()
+        debt = [0]*5
+        if text[0] != 'добавить' and text[0] != 'добавь':
+            return None
+        text.pop(0)
+        if text.pop(0) != 'долг':
+            return None
+        debt[0] = text.pop(0)
+        debt[1] = text.pop(0)
+        if text[0] == '-':
+            text.pop(0)
+            debt[2] = round(float(check_num((text[0]))),2)
+            debt[2] = -debt[2]
+        else:
+            debt[2] = round(float(check_num((text[0]))),2)
+        text.pop(0)
+        debt[4] = text.pop(0)
+        if text == []:
+            debt[3] = 'все'
+            return debt
+        if text[0] != 'со' and text[0] != 'на':
+            return None
+        text.pop(0)
+        if 'счет' not in text.pop(0):
+            return None
+        debt[3] = ' '.join(text)
+        return debt
+    except Exception:
+        return None
+
 def tday():#дата сегодня в виде массива
     a = time.asctime()
     a = a.split()
@@ -205,3 +249,27 @@ def lday():#дата вчера в виде массива
         b[0] = mdays[b[1]] + v
     return b
 
+def stday():#дата сегодня в виде строки
+    a = str(tday())
+    a = a.replace('[','')
+    a = a.replace(']','')
+    a = a.replace(', ','.')
+    return a
+
+# Проверка текста, True если есть ошибка
+def check_text(text, tp):
+    if tp == 'rus':
+        for i in text:
+            if (not (i >= 'а' and i <= 'я')) and i != ' ':
+                return True
+        return False
+    elif tp == 'rus1':
+        for i in text:
+            if (not (i >= 'а' and i <= 'я')) and i != ' ' and (not (i >= '0' and i <= '9')):
+                return True
+        return False
+    elif tp == 'eng1':
+        for i in text:
+            if (not (i >= 'A' and i <= 'Z')) and i != ' ' and (not (i >= '0' and i <= '9')) and (not (i >= 'a' and i <= 'z')):
+                return True
+        return False

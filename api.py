@@ -69,6 +69,9 @@ def main():
 def handle_dialog(req, res):
     user_id = req['session']['user_id']
 
+   
+    com = req['request']['command'].lower()
+
     if req['session']['new']: 
         # Это новый пользователь.
         # Инициализируем сессию и поприветствуем его.
@@ -99,9 +102,8 @@ def handle_dialog(req, res):
         res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
         return
 
-    # Обрабатываем ответ пользователя.
-    com = req['request']['command'].lower()
     
+    # Обрабатываем ответ пользователя.
     if sessionStorage[user_id]['step'] == 'mainUS':
         # Пользователь попросил помощь
         if com == 'помощь':
@@ -196,6 +198,7 @@ def handle_dialog(req, res):
         
         
     elif sessionStorage[user_id]['step'] == 'main':
+        # Проверка на то, есть ли доступ к аккаунту
         if not (check_session(user_id)):
             res['response']['text'] = "Бот выполнил деаутентификацию."
             sessionStorage[user_id]['step'] = 'mainUS'
@@ -215,23 +218,48 @@ def handle_dialog(req, res):
             Текущий счет - узнать выбранный счет
             Новый расход/доход - добавление расхода или дохода
             Добавь расход/доход + параметры - добавление расхода или дохода одной командой
+            Баланс счета *название* - узнать баланс определенного счета
+            Сумма долгов - узнать сумму задолженностей
+            Новый долг - добавление долга
+            Добавить долг + параметры - добавление долга одной командой
             
             P.S. Данный навык находится в разработке, поэтому новые функции будут появляться постепенно
             По всем вопросам и предложениям можно писать в телеграм-аккаунт @m3prod
             """
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             return
-            
+
+        # Баланс конкретного счета
+        elif 'баланс счета' in com:
+            com = com.split()
+            while com[0] != 'баланс':
+                com.pop(0)
+            com.pop(0)
+            com.pop(0)
+            com = ' '.join(com)
+            res['response']['text'] = watch_bank(user_id, com)
+            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            return
+
+        # Сумма долгов
+        elif 'сумм' in com and 'дол' in com:
+            res['response']['text'] = watch_debts(user_id, 'sum')
+            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            return
+
+        # Просмотр баланса всех счетов
         elif 'баланс' in com:
             res['response']['text'] = watch_bank(user_id)
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             return
 
+        # Просмотр долгов
         elif 'долги' in com or 'должник' in com:
             res['response']['text'] = watch_debts(user_id)
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             return
 
+        # Выход из аккаунта
         elif 'выход' in com or 'выйти' in com:
             conn = sqlite3.connect(db)
             cur = conn.cursor()
@@ -244,11 +272,170 @@ def handle_dialog(req, res):
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             return
 
-        elif 'текущий' in com and 'счет' in com:
+        # Текущий счет
+        elif 'текущий счет' in com:
             res['response']['text'] = 'Текущий счет: ' + sessionStorage[user_id]['fin']
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             return
 
+        elif com == 'новый расход' or com == 'новый доход':################################
+            res['response']['text'] = """
+                Пока добавить позицию можно только командой "Добавь" + параметры
+                Пример запроса:
+                Добавь расход продукты 200 рублей в категории еда за 20 мая 2018 года со счета кошелек
+                Пример короткого запроса:
+                Добавь расход 200 рублей в категории еда
+                Комментарий не обязателен
+                Если не указано число, то позиция будет добавлена сегодняшним числом
+                Если не указан счет, то позиция будет добавлена на основной счет (поменять командой "смена счета", проверить командой текущий счет)
+                Структура запроса:
+                Добавь {расход/доход} [комментарий] *число* рублей в категории *название* [за] [сегодня/вчера/*число* *месяц*/*число* *месяц* *год*] [{со счета/на счет} *название*]
+                "со счета" для расхода
+                "на счет" для дохода
+            """
+            res['response']['tts'] = """
+                Пока добавить позицию можно только командой "Добавь" + параметры
+                Пример запроса:
+                Добавь расход продукты 200 рублей в категории еда за 20 мая 2018 года со счета кошелек
+                Пример короткого запроса:
+                Добавь расход 200 рублей в категории еда
+            """
+            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            return
+
+        # Обработка добавления расхода/дохода
+        elif 'добавить расход' in com or 'добавить доход' in com or 'добавь расход' in com or 'добавь доход' in com:
+            login = sessionStorage[user_id]['login']
+            udb = user_db(login)
+            fin = check_fin(com)
+            if fin == None:
+                res['response']['text'] = 'Неверный формат'
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                return
+            if fin[5] == 'все':
+                fin[5] = sessionStorage[user_id]['fin']
+
+            # Проверка правильности даты
+            tm = [0]*3
+            tm[2] = fin[8] #год
+            tm[1] = fin[7] #месяц
+            tm[0] = fin[6] #день
+            if tm[1] < 1 or tm[1] > 12 or tm[0] < 1 or tm[0] > 31:
+                res['response']['text'] = 'Неправильная дата'
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                return
+            
+            # Проверка существования категории
+            conn = sqlite3.connect(udb)
+            cur = conn.cursor()
+            if fin[0] == 'расход':
+                cur.execute("SELECT cat FROM cats WHERE login = '%s'"%(login))
+            elif fin[0] == 'доход':
+                cur.execute("SELECT cat FROM fcats WHERE login = '%s'"%(login))
+            kod = 1
+            for row in cur:
+                if row[0] == fin[4] or (fin[4] in row[0] and kod == 1):
+                    kod = 0
+                    fin[4] = row[0]
+            if kod == 1:
+                res['response']['text'] = 'Неправильная категория'
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                cur.close()
+                conn.close()
+                return
+            
+            # Проверка существования счета
+            cur.execute("SELECT name FROM bank WHERE login = '%s'"%(login))
+            kod = 1
+            for row in cur:
+                if row[0] == fin[5] or (fin[5] in row[0] and kod == 1):
+                    kod = 0
+                    fin[5] = row[0]
+            cur.close()
+            conn.close()
+            if kod == 1:
+                res['response']['text'] = 'Неправильный счет' 
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                return
+
+            sessionStorage[user_id]['step'] += '_addfin'
+            res['response']['text'] = 'Правильно ли я поняла, что надо добавить ' + fin[0] + ' ' + fin[1] + ' ' + str(fin[2]) + ' ' + fin[3] + ' в категории ' + fin[4] + ' за ' + str(fin[6]) + ' ' + monthR_rev[fin[7]] + ' ' + str(fin[8]) + ' года, счет: ' + fin[5] 
+            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            vr1[user_id] = fin
+            return
+
+        elif com == 'новый долг':##########################
+            res['response']['text'] = """
+                Пока добавить долг можно только командой "Добавь долг" + параметры
+                Пример запроса:
+                Добавь долг Иванов Иван 200 рублей со счета кошелек
+                Пример короткого запроса:
+                Добавь долг Иванов Иван 200 рублей
+                Если не указан счет, то позиция будет добавлена на основной счет (поменять командой "смена счета", проверить командой текущий счет)
+                Структура запроса:
+                Добавь долг *фамилия* *имя* *число* рублей [со счета *название*]
+            """
+            res['response']['tts'] = """
+                Пока добавить долг можно только командой "Добавь долг" + параметры
+                Пример запроса:
+                Добавь долг Иванов Иван 200 рублей со счета кошелек
+                Пример короткого запроса:
+                Добавь долг Иванов Иван 200 рублей
+            """
+            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            return
+
+        # Добавление долга
+        elif 'добавить долг' in com or 'добавь долг' in com:
+            login = sessionStorage[user_id]['login']
+            udb = user_db(login)
+            debt = check_debt(com)
+            if debt == None:
+                res['response']['text'] = 'Неверный формат'
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                return
+
+            if debt[3] == 'все':
+                debt[3] = sessionStorage[user_id]['fin']
+
+            # Проверка существования счета
+            conn = sqlite3.connect(udb)
+            cur = conn.cursor()
+            cur.execute("SELECT name FROM bank WHERE login = '%s'"%(login))
+            kod = 1
+            for row in cur:
+                if row[0] == debt[3] or (debt[3] in row[0] and kod == 1):
+                    kod = 0
+                    debt[3] = row[0]
+            cur.close()
+            conn.close()
+            if kod == 1:
+                res['response']['text'] = 'Неправильный счет' 
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                return
+
+            sessionStorage[user_id]['step'] += '_adddebt'
+            res['response']['text'] = 'Правильно ли я поняла, что надо добавить долг ' + debt[0] + ' ' + debt[1] + ' ' + str(debt[2]) + ' ' + debt[4] + ' со счета: ' + debt[3] 
+            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            vr1[user_id] = debt
+            return
+            
+
+        # Удаление долга
+        elif 'удалить долг' in com:###########################################################3
+            return
+
+        # Пользоваель сказал спасибо, завершение сессии
+        elif com == 'спасибо':
+            res['response']['text'] = 'Всегда рада помочь!'
+            res['response']['end_session'] = True
+            return
+
+        # Расходы за какой-то период времени
+        elif 'расходы за' in com or 'доходы за' in com:################################################
+            return
+
+        # Смена счета
         elif 'мен' in com and 'счет' in com:
             login = sessionStorage[user_id]['login']
             udb = user_db(login)
@@ -260,7 +447,7 @@ def handle_dialog(req, res):
                 cur = conn.cursor()
                 cur.execute("SELECT name FROM bank WHERE login = '%s'"%(login))
                 for row in cur:
-                    if row[0] == com or (com in row[0]):
+                    if row[0] == com or (com in row[0]):################# названия похожи
                         sessionStorage[user_id]['fin'] = row[0]
                         res['response']['text'] = 'Выбран счет ' + sessionStorage[user_id]['fin']
                         res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
@@ -292,91 +479,6 @@ def handle_dialog(req, res):
             res['response']['text'] = 'Выберите другой счет'
             return
 
-        elif com == 'новый расход' or com == 'новый доход':
-            res['response']['text'] = """
-                Пока добавить позицию можно только командой "Добавь" + параметры
-                Пример запроса:
-                Добавь расход продукты 200 рублей в категории еда за 20 мая 2018 года со счета кошелек
-                Пример короткого запроса:
-                Добавь расход 200 рублей в категории еда
-                Комментарий не обязателен
-                Если не указано число, то позиция будет добавлена сегодняшним числом
-                Если не указан счет, то позиция будет добавлена на основной счет (поменять командой "смена счета")
-                Структура запроса:
-                Добавь {расход/доход} [комментарий] *число* рублей в категории *название* [за] [сегодня/вчера/*число* *месяц*/*число* *месяц* *год*] [{со счета/на счет} *название*]
-                "со счета" для расхода
-                "на счет" для дохода
-            """
-            res['response']['tts'] = """
-                Пока добавить позицию можно только командой "Добавь" + параметры
-                Пример запроса:
-                Добавь расход продукты 200 рублей в категории еда за 20 мая 2018 года со счета кошелек
-                Пример короткого запроса:
-                Добавь расход 200 рублей в категории еда
-            """
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-            return
-
-        elif 'добавить расход' in com or 'добавить доход' in com or 'добавь расход' in com or 'добавь доход' in com:
-            login = sessionStorage[user_id]['login']
-            udb = user_db(login)
-            fin = check_fin(com)
-            if fin == None:
-                res['response']['text'] = 'Неверный формат'
-                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-                return
-            if fin[5] == 'все':
-                fin[5] = sessionStorage[user_id]['fin']
-
-            # Проверка правильности даты
-            tm = [0]*3
-            tm[2] = fin[8] #год
-            tm[1] = fin[7] #месяц
-            tm[0] = fin[6] #день
-            if tm[1] < 1 or tm[1] > 12 or tm[0] < 1 or tm[0] > 31:
-                res['response']['text'] = 'Неправильная дата'
-                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-                return
-            
-            # Проверка существования категории
-            conn = sqlite3.connect(udb)
-            cur = conn.cursor()
-            if fin[0] == 'расход':
-                cur.execute("SELECT cat FROM cats WHERE login = '%s'"%(login))
-            elif fin[0] == 'доход':
-                cur.execute("SELECT cat FROM fcats WHERE login = '%s'"%(login))
-            kod = 1
-            for row in cur:
-                if row[0] == fin[4] or (fin[4] in row[0]):
-                    kod = 0
-                    fin[4] = row[0]
-            if kod == 1:
-                res['response']['text'] = 'Неправильная категория'
-                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-                cur.close()
-                conn.close()
-                return
-            
-            # Проверка существования счета
-            cur.execute("SELECT name FROM bank WHERE login = '%s'"%(login))
-            kod = 1
-            for row in cur:
-                if row[0] == fin[5] or (fin[5] in row[0]):
-                    kod = 0
-                    fin[5] = row[0]
-            cur.close()
-            conn.close()
-            if kod == 1:
-                res['response']['text'] = 'Неправильный счет' 
-                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-                return
-
-            sessionStorage[user_id]['step'] += '_addfin'
-            res['response']['text'] = 'Правильно ли я поняла, что надо добавить ' + fin[0] + ' ' + fin[1] + ' ' + str(fin[2]) + ' ' + fin[3] + ' в категории ' + fin[4] + ' за ' + str(fin[6]) + ' ' + monthR_rev[fin[7]] + ' ' + str(fin[8]) + ' года, счет: ' + fin[5] 
-            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
-            vr1[user_id] = fin
-            return
-
         else:
             res['response']['text'] = 'Я вас не понимаю. Можете воспользоваться помощью.'
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
@@ -402,6 +504,57 @@ def handle_dialog(req, res):
             res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
             return
         vr1.pop(user_id)
+
+    # Добавление долга
+    elif sessionStorage[user_id]['step'] == 'main_adddebt':
+        login = sessionStorage[user_id]['login']
+        udb = user_db(login)
+        sessionStorage[user_id]['step'] = prev_step(sessionStorage[user_id]['step'])
+        if com == 'нет' or com != 'да':
+            res['response']['text'] = 'Ладно, этот долг мы добавлять не будем'
+            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            return
+        debt = vr1[user_id]
+        vr1.pop(user_id)
+        fam, im, dolg = debt[0], debt[1], str(debt[2])
+        fam, im = fam + ' ' + im, im + ' ' + fam
+        if check_text(fam.lower(), 'rus'):
+            res['response']['text'] = 'Используйте только русские буквы'
+            res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+            return
+        conn = sqlite3.connect(udb)
+        cur = conn.cursor()
+        cur.execute("SELECT cred, sz FROM credits WHERE login = '%s'"%(login))
+        for row in cur:
+            if (row[0].lower() == fam.lower()) or (row[0].lower() == im.lower()):
+                res['response']['text'] = 'Данный участник уже есть в базе'
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                cur.close()
+                conn.close()
+                return
+        cur.execute("SELECT bal FROM bank WHERE login = '%s' AND name = '%s'"%(login,debt[3]))
+        for row in cur:
+            if row[0] < round(float(dolg),2):
+                res['response']['text'] = 'У вас нет столько денег'
+                res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+                cur.close()
+                conn.close()
+                return
+            sz = row[0]
+        sz -= round(float(dolg),2)
+        cur.execute("UPDATE bank SET bal = '%f' WHERE login = '%s' AND name = '%s'"%(sz,login,debt[3]))
+        tme = stday()
+        cur.execute("INSERT INTO credits (login,cred,time,sz) VALUES ('%s','%s','%s','%f' )"%(login,fam,tme,round(float(dolg),2)))
+        conn.commit()
+        cur.close()
+        conn.close()
+        res['response']['text'] = 'Долг успешно добавлен'
+        res['response']['buttons'] = getBut(sessionStorage[user_id]['step'])
+        return
+
+
+
+        
 
     # Добавление расхода/дохода
     elif sessionStorage[user_id]['step'] == 'main_addfin':
@@ -454,37 +607,62 @@ def handle_dialog(req, res):
         return
         
 
-def watch_bank(user_id):
+def watch_bank(user_id, spn = 'все'):
     login = sessionStorage[user_id]['login']
     udb = user_db(login)
     kol = 0
     osum = 0
     sdebt = 0
     stroka = ""
-    stroka += 'Ваши счета:\n'
+    if spn == 'все':
+        stroka = "Ваши счета:\n"
     conn = sqlite3.connect(udb)
     cur = conn.cursor()
     cur.execute("SELECT name, bal FROM bank WHERE login = '%s'"%(login))
     for row in cur:
-        kol += 1
-        stroka += str(kol) + ') ' + row[0] + '\nБаланс счета: ' + str(row[1]) + ' рублей\n\n'
-        osum += row[1]
-    stroka += 'Сумма: ' + str(round(osum,2)) + ' рублей'
-
-    cur.execute("SELECT sz FROM credits WHERE login = '%s'"%(login))    
-    for row in cur:
-        sdebt += row[0]
+        if spn == 'все':
+            kol += 1
+            stroka += str(kol) + ') ' + row[0] + '\nБаланс счета: ' + str(row[1]) + ' рублей\n\n'
+            osum += row[1]
+        elif spn == row[0] or (stroka == "" and spn in row[0]):
+            kol += 1
+            stroka = 'Баланс счета ' + row[0] + ': ' + str(row[1]) + ' рублей'
+    if spn == 'все':
+        stroka += 'Сумма: ' + str(round(osum,2)) + ' рублей'
+        cur.execute("SELECT sz FROM credits WHERE login = '%s'"%(login))    
+        for row in cur:
+            sdebt += row[0]
+        stroka += '\nСумма, учитывая долги: ' + str(round(osum+sdebt,2)) + ' рублей'
     cur.close()
     conn.close()
-    stroka += '\nСумма, учитывая долги: ' + str(round(osum+sdebt,2)) + ' рублей'
     if kol == 0:
-        stroka = 'У вас нет счетов'
+        if spn == 'все':
+            stroka = 'У вас нет счетов'
+        else:
+            stroka = 'Такого счета нет'
     return stroka
 
 
-def watch_debts(user_id):
+def watch_debts(user_id, tp = 'all'):
     login = sessionStorage[user_id]['login']
     udb = user_db(login)
+    if tp == 'sum':
+        osum = 0
+        conn = sqlite3.connect(udb)
+        cur = conn.cursor()
+        cur.execute("SELECT sz FROM credits WHERE login = '%s'"%(login))
+        for row in cur:
+            osum += row[0]
+        cur.close()
+        conn.close()
+        stroka = "Сумма долгов: " + str(osum)
+        if osum % 10 == 0 or osum % 10 > 4 or (osum % 100 > 10 and osum % 100 < 15):
+            stroka += ' рублей'
+        elif osum % 10 == 1:
+            stroka += ' рубль'
+        elif osum % 10 > 1 and osum % 10 < 5:
+            stroka += ' рубля'
+        return stroka
     kol = 0
     osum = 0
     stroka = ""
@@ -495,7 +673,8 @@ def watch_debts(user_id):
     for row in cur:
         if row[1] > 0:
             im = row[0].split()
-            if im[0][-3:] = 'ова' or im[0][-3:] = 'ева' or im[0][-3:] = 'ина' or im[0][-3:] = 'кая':
+            im = im[0][-3:]
+            if im == 'ова' or im == 'ева' or im == 'ина' or im == 'кая':
                 stroka += row[0] + ' должна вам ' + str(row[1]) + ' рублей с ' + row[2] + '\n'
             else:
                 stroka += row[0] + ' должен вам ' + str(row[1]) + ' рублей с ' + row[2] + '\n'
